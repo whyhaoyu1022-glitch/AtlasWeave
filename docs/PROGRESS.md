@@ -75,7 +75,7 @@ M0 实现、本地自动化与双平台 CI 已完成；人工验收待完成，�
 | 共享边 16 个固定 seed 候选 | 双方同步、无面积重叠、总面积守恒 |
 | wheel / sdist 构建 | 成功 |
 | 独立环境安装包 | 域导入无 Qt、模型校验、主窗口启动/关闭通过 |
-| GitHub Windows / Linux CI | 提交后核对，暂不宣称通过 |
+| GitHub Windows / Linux CI | 两个平台全部通过，见下方本轮运行证据 |
 | Windows 实机人工验收 | 仍待用户执行 M0 清单 |
 
 ### 本轮发现并处理
@@ -92,3 +92,11 @@ M0 实现、本地自动化与双平台 CI 已完成；人工验收待完成，�
 下轮先核对本次远端提交与 CI，优先处理失败；建议提交 M1 第二批工程 IO 与无损往返计划。
 读取 `docs/DOMAIN_MODEL.md`，按只读快照显式序列化，避免 `dataclasses.asdict` 对只读映射的深拷贝问题。
 每周验收材料新增 `docs/acceptance/M1-01.md`；本轮批准不自动授权下轮。
+
+### 本轮提交与 CI 证据
+
+- 实现提交：`1bcefc5581bd22152df62851517c694768e142b7`。
+- [本轮 GitHub Actions](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38181714497)：Windows / Linux 作业均 success。
+- 静态检查、99 项测试、主窗口冒烟、构建、独立安装后领域模型与 GUI 验证均通过。
+- 附件 `atlasweave-windows-latest` / `atlasweave-ubuntu-latest` 包含测试报告、实际骨架窗口截图与 Python wheel/sdist；不是正式 Windows EXE。
+- 收尾提交仅补充验收文档，产品代码与上述已验证实现提交一致。
