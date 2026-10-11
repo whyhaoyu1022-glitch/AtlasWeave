@@ -1,1 +1,1 @@
-"""Reserved layer; implemented in the corresponding milestone."""
+"""Pure domain snapshots and validation; no Qt dependency."""

@@ -25,6 +25,21 @@ def main() -> None:
         env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONUTF8": "1"}
         env.pop("PYTHONPATH", None)
         subprocess.run(
+            [
+                str(python),
+                "-c",
+                "import sys; "
+                "from atlasweave.domain.project import Project; "
+                "from atlasweave.domain.validation import validate_project; "
+                "validate_project(Project()).require_valid(); "
+                "assert not any(n.startswith('PyQt6') for n in sys.modules)",
+            ],
+            cwd=root,
+            env=env,
+            check=True,
+            timeout=30,
+        )
+        subprocess.run(
             [str(python), "-m", "atlasweave", "--smoke-test", "--data-dir", str(root / "data")],
             cwd=root,
             env=env,
@@ -35,7 +50,9 @@ def main() -> None:
         assert "Application stopped | exit=0" in (root / "data/logs/atlasweave.log").read_text(
             encoding="utf-8"
         )
-        print("Installed wheel: launch, render, settings and clean exit verified.")
+        print(
+            "Installed wheel: domain validation, launch, render, settings and clean exit verified."
+        )
 
 
 if __name__ == "__main__":

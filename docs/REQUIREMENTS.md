@@ -91,3 +91,15 @@
 | §53 M0 启动/测试/CI | application.py、tests、ci.yml | 以 PROGRESS.md 和 CI 结果为准 |
 
 §5 完整启动恢复流程、§54 正式发布构建、§55 全产品完成定义不属于已完成的 M0 功能。
+
+## M1 第一批追踪
+
+| 条款 | 实现 | 证据 |
+|---|---|---|
+| §3.4–3.5 | geometry.py / values.py | 世界坐标、容差、UUID 与有限数值测试 |
+| §4.1–4.3 | project.py / hierarchy.py / region.py | 模型、标量边界与关系测试 |
+| §4.4、§4.6 | topology.py | 多部件、洞、共享边、交汇点与方向测试 |
+| §4.7、§47 | validation.py | 拓扑引用、合法性、父子包含与同级重叠测试 |
+| §51、§53 M1（部分） | 领域测试及独立 wheel 验证 | 以 PROGRESS.md 和 CI 结果为准 |
+
+工程 IO、迁移、备份、最近工程、UI 命令与完整 V1 验收仍待对应后续批次，见 ROADMAP.md。

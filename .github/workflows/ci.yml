@@ -1,4 +1,4 @@
-name: M0 desktop checks
+name: Desktop and domain checks
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m0-${{ matrix.os }}
+          name: atlasweave-${{ matrix.os }}
           path: |
             test-results/
             dist/

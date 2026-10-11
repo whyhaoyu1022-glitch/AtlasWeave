@@ -2,7 +2,7 @@
 
 基于 Python 3.12+ / PyQt6 的虚构行政地图桌面编辑器。
 
-**当前阶段：M0 工程骨架。尚不能创建、编辑或保存地图工程，不是 V1 成品。**
+**当前阶段：M1 第一批数据模型与基础拓扑，界面仍为 M0 骨架。尚不能在界面中创建、编辑或保存地图工程，不是 V1 成品。**
 仓库名保留 `Atlasveave`，产品与 Python 包名使用规范中的 `AtlasWeave` / `atlasweave`。
 
 ## 安装与启动
@@ -46,6 +46,7 @@ uv build --no-build-isolation
 - [开发路线](docs/ROADMAP.md)：按原文 M0–M8 推进。
 - [续接记录](docs/PROGRESS.md)：开始下一轮前先阅读，再核对 GitHub 实际状态。
 - [M0 验收](docs/acceptance/M0.md)：自动化证据与人工验收分开记录。
+- [M1 第一批验收](docs/acceptance/M1-01.md)；[领域模型接口](docs/DOMAIN_MODEL.md)。
 - [已知问题](docs/KNOWN_ISSUES.md)；[依赖声明](THIRD_PARTY_NOTICES.md)。
 
 每日北京时间 06:30、22:00 提交开发计划，用户批准该轮计划后执行。
@@ -54,7 +55,7 @@ uv build --no-build-isolation
 ## 结构
 
 `app` 负责启动和设置；`domain` 负责纯数据与规则；`services` 负责用例；
-`commands` 负责可撤销变更；`ui` 负责呈现。后三类业务功能按后续里程碑实现。
-未来 Domain 不得依赖 Qt 控件，UI 不得绕过命令系统修改工程数据。
+`commands` 负责可撤销变更；`ui` 负责呈现。领域数据与基础校验已实现，用户操作与界面按后续里程碑接入。
+Domain 不得依赖 Qt 控件，UI 不得绕过命令系统修改工程数据。
 
 源码许可尚待仓库所有者确定；公开仓库不代表已授予特定开源许可。
