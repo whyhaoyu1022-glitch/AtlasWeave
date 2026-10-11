@@ -1,1 +1,60 @@
-# Atlasveave
+# 疆理 AtlasWeave
+
+基于 Python 3.12+ / PyQt6 的虚构行政地图桌面编辑器。
+
+**当前阶段：M0 工程骨架。尚不能创建、编辑或保存地图工程，不是 V1 成品。**
+仓库名保留 `Atlasveave`，产品与 Python 包名使用规范中的 `AtlasWeave` / `atlasweave`。
+
+## 安装与启动
+
+推荐使用 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
+
+```sh
+python -m pip install uv==0.12.23
+uv sync --frozen --extra dev
+uv run --frozen --extra dev python -m atlasweave
+```
+
+普通 pip 安装也可用，但要重现 CI 的精确依赖版本请使用上述 `uv.lock`：
+
+```sh
+python -m pip install -e ".[dev]"
+python -m atlasweave
+```
+
+已实现的菜单：文件 → 退出；帮助 → 打开日志目录 / 关于疆理。
+窗口位置和大小在正常退出时保存。日志仅保存在本机，不上传。
+默认数据目录由 Qt 按操作系统用户目录确定；测试可以使用 `--data-dir` 隔离。
+
+## 开发验证
+
+```sh
+uv run --frozen --extra dev ruff check .
+uv run --frozen --extra dev ruff format --check .
+uv run --frozen --extra dev pytest
+uv run --frozen --extra dev python -m atlasweave --smoke-test --data-dir local-data --screenshot test-results/m0-window.png
+uv build --no-build-isolation
+```
+
+无显示服务的 Linux 环境需要先设置 `QT_QPA_PLATFORM=offscreen`；Linux 仍需可用的 Qt 系统动态库。
+测试的 subprocess 有超时，启动失败不会一直等待无人处理的对话框。
+
+## 规范、计划与验收
+
+- [原版 V1 规范](docs/spec/JIANGLI_ATLASWEAVE_V1_SPEC.md)：不可擅自删减必须功能。
+- [需求索引](docs/REQUIREMENTS.md)：覆盖全部规范章节及 AC-01–AC-15。
+- [开发路线](docs/ROADMAP.md)：按原文 M0–M8 推进。
+- [续接记录](docs/PROGRESS.md)：开始下一轮前先阅读，再核对 GitHub 实际状态。
+- [M0 验收](docs/acceptance/M0.md)：自动化证据与人工验收分开记录。
+- [已知问题](docs/KNOWN_ISSUES.md)；[依赖声明](THIRD_PARTY_NOTICES.md)。
+
+每日北京时间 06:30、22:00 提交开发计划，用户批准该轮计划后执行。
+所有跨轮进度以提交、测试结果和以上文档为依据，不能依赖临时环境。
+
+## 结构
+
+`app` 负责启动和设置；`domain` 负责纯数据与规则；`services` 负责用例；
+`commands` 负责可撤销变更；`ui` 负责呈现。后三类业务功能按后续里程碑实现。
+未来 Domain 不得依赖 Qt 控件，UI 不得绕过命令系统修改工程数据。
+
+源码许可尚待仓库所有者确定；公开仓库不代表已授予特定开源许可。
