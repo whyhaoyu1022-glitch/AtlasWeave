@@ -46,6 +46,22 @@ def main() -> None:
             check=True,
             timeout=30,
         )
+        io_probe = root / "data" / "wheel-probe.atlasweave"
+        subprocess.run(
+            [
+                str(python),
+                "-c",
+                "from pathlib import Path; "
+                "from atlasweave.domain.project import Project; "
+                "from atlasweave.services.project_io import ProjectStore; "
+                f"p=Path({str(io_probe)!r}); s=ProjectStore(); s.save(Project(), p); "
+                "assert s.load(p).validation.is_valid",
+            ],
+            cwd=root,
+            env=env,
+            check=True,
+            timeout=30,
+        )
         assert (root / "data/config/settings.json").is_file()
         assert "Application stopped | exit=0" in (root / "data/logs/atlasweave.log").read_text(
             encoding="utf-8"

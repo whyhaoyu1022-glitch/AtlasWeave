@@ -1,6 +1,5 @@
 """Immutable project snapshots; mutations will be assembled by commands."""
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -20,6 +19,7 @@ from atlasweave.domain.values import (
     timestamp_value,
     uuid_value,
 )
+from atlasweave.domain.version import Version
 
 
 def default_levels() -> tuple[HierarchyLevel, ...]:
@@ -75,8 +75,7 @@ class Project:
         text_value(self.name, "name", required=True, maximum=80)
         text_value(self.description, "description", maximum=5000)
         text_value(self.format_version, "format_version", required=True)
-        if not re.fullmatch(r"\d+\.\d+\.\d+", self.format_version):
-            raise ModelError("format_version", "必须使用 major.minor.patch 格式")
+        Version.parse(self.format_version)
         text_value(self.app_version, "app_version", required=True)
         for name in ("world_width_km", "world_height_km"):
             object.__setattr__(

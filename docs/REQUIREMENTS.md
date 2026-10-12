@@ -103,3 +103,15 @@
 | §51、§53 M1（部分） | 领域测试及独立 wheel 验证 | 以 PROGRESS.md 和 CI 结果为准 |
 
 工程 IO、迁移、备份、最近工程、UI 命令与完整 V1 验收仍待对应后续批次，见 ROADMAP.md。
+
+## M1 第二批追踪
+
+| 条款 | 实现 | 证据 |
+|---|---|---|
+| §33.1–33.2 | services/project_io.py、project_codec.py、thumbnail.py | ZIP 必要成员、PNG、附件与往返测试 |
+| §33.3–33.4、AC-15 | ProjectStore 原子临时写入、复制备份 | 写入失败、原文件保护、备份轮换测试 |
+| §33.5 | domain/version.py、services/migrations.py | 低版本迁移历史、高版本只读测试 |
+| §33.6 | 显式 codec 与只读 JSON 值 | 顶层/模型/拓扑未知字段往返测试 |
+| §7.3 / M1 最近工程 | services/project_io.py: RecentProjects | 上限、置顶、损坏恢复和移除测试 |
+
+菜单接入、自动保存和崩溃恢复仍待 M2/M7。
