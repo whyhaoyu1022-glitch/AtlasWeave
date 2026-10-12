@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QListWidget, QMessageBox
 
 from atlasweave import APP_NAME
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
+from atlasweave.domain.project import Project
 from atlasweave.ui.main_window import MainWindow
 
 
@@ -33,7 +34,7 @@ def test_about_and_log_failure_are_accessible(qtbot, tmp_path, monkeypatch):
     window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
     qtbot.addWidget(window)
     window.about_action.trigger()
-    assert "Python" in messages[0][2] and "M0" in messages[0][2]
+    assert "Python" in messages[0][2] and "M2" in messages[0][2]
     window.logs_action.trigger()
     assert str(tmp_path) in messages[1][2]
 
@@ -57,3 +58,30 @@ def test_noninteractive_close_reports_settings_failure(qtbot, tmp_path, monkeypa
     window.show()
     window.close()
     assert window.settings_error == "磁盘不可写"
+
+
+def test_welcome_page_exposes_real_project_actions(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    assert window.centralWidget().objectName() == "welcomePage"
+    assert window.centralWidget().findChild(QListWidget) is not None
+    assert window.new_action.isEnabled()
+    assert window.open_action.isEnabled()
+    assert not window.save_action.isEnabled()
+
+
+def test_save_as_adds_atlasweave_suffix_and_updates_recent(qtbot, tmp_path, monkeypatch):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.project = Project(name="测试")
+    window.dirty = True
+    monkeypatch.setattr(
+        "atlasweave.ui.main_window.QFileDialog.getSaveFileName",
+        lambda *args: (str(tmp_path / "test-project"), ""),
+    )
+    assert window.save_project_as()
+    saved = tmp_path / "test-project.atlasweave"
+    assert saved.is_file()
+    assert window.project_path == saved.resolve()
+    assert not window.dirty
+    assert window.recent.load()[0].path == saved.resolve()
