@@ -124,7 +124,7 @@ M0 实现、本地自动化与双平台 CI 已完成；人工验收待完成，�
 | `.atlasweave` 样例往返 | 工程、共享拓扑、属性、扩展和附件保留 |
 | 原子失败场景 | 原文件保留、临时文件清理 |
 | wheel / sdist 与独立环境 | 待本轮 CI 核对 |
-| GitHub Windows / Linux CI | 待提交后核对 |
+| GitHub Windows / Linux CI | 两个平台全部通过，见下方证据 |
 | Windows 实机人工验收 | 仍待用户执行 M0 清单 |
 
 ### 续接与未完成
@@ -161,7 +161,7 @@ M1 服务层 IO 已完成；尚缺 UI 打开/保存菜单、未保存标记、�
 | 完整 pytest 回归 | 111 项通过 |
 | Qt 离屏启动冒烟 | 通过（`QT_QPA_PLATFORM=offscreen`） |
 | wheel / sdist 构建 | 成功 |
-| GitHub Windows / Linux CI | 待提交后核对 |
+| GitHub Windows / Linux CI | 两个平台全部通过，见下方证据 |
 | Windows 实机人工验收 | 仍待用户执行新建、保存、打开、退出流程 |
 
 ### 未完成
@@ -171,3 +171,10 @@ M1 服务层 IO 已完成；尚缺 UI 打开/保存菜单、未保存标记、�
 ### 续接
 
 提交后先核对双平台 CI，再准备每周验收材料；下一批建议实现画布坐标、基础缩放平移和停靠布局。
+
+
+### 本批提交与 CI 证据
+
+- 实现提交：`c42206e7aa108bad2bf7121755ce8ed862ce4c58`。
+- [GitHub Actions 运行 38317639606](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38317639606)：Windows / Linux 均 success。
+- 本地完整回归 111 项通过；Qt 离屏启动、wheel 独立安装和工程 IO 探针通过。
