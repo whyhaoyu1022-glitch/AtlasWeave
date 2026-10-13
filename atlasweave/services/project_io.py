@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from atlasweave.domain.project import Project
 from atlasweave.domain.validation import ValidationReport, validate_project
@@ -30,6 +30,10 @@ class ProjectIOError(Exception):
     """A user-actionable project IO failure; target content is kept intact."""
 
 
+class RecentProjectsError(Exception):
+    """Recent history could not be updated; the project itself is unaffected."""
+
+
 @dataclass(frozen=True)
 class LoadedProject:
     project: Project
@@ -40,6 +44,7 @@ class LoadedProject:
     validation: ValidationReport | None = None
     attachments: dict[str, bytes] | None = None
     document_extra: dict | None = None
+    extra_members: dict[str, bytes] | None = None
 
 
 @dataclass(frozen=True)
@@ -57,11 +62,19 @@ def _json_bytes(value: dict) -> bytes:
     ).encode("utf-8")
 
 
-def _read_documents(path: Path) -> tuple[dict[str, dict], bytes, dict[str, bytes]]:
+def _read_documents(path: Path) -> tuple[dict[str, dict], dict[str, bytes], dict[str, bytes]]:
     if not path.is_file():
         raise ProjectIOError(f"工程文件不存在：{path}")
     try:
         with zipfile.ZipFile(path, "r") as archive:
+            entries = archive.infolist()
+            if len({entry.filename for entry in entries}) != len(entries):
+                raise ProjectIOError("工程包含同名压缩包成员，无法安全保留；请使用原版本应用检查。")
+            for entry in entries:
+                if not _safe_member_name(entry.filename):
+                    raise ProjectIOError(f"工程成员路径不安全：{entry.filename}")
+                if entry.file_size > MAX_MEMBER_BYTES:
+                    raise ProjectIOError(f"工程成员过大：{entry.filename}")
             if bad := archive.testzip():
                 raise ProjectIOError(f"工程压缩包校验失败：{bad}")
             names = set(archive.namelist())
@@ -81,11 +94,12 @@ def _read_documents(path: Path) -> tuple[dict[str, dict], bytes, dict[str, bytes
             if not thumbnail.startswith(b"\x89PNG\r\n\x1a\n"):
                 raise ProjectIOError("工程缩略图不是有效 PNG")
             attachments = {
-                name: archive.read(name)
-                for name in names
-                if name.startswith("attachments/") and _safe_member_name(name)
+                name: archive.read(name) for name in names if name.startswith("attachments/")
             }
-            return documents, thumbnail, attachments
+            extra_members = {
+                name: archive.read(name) for name in names - REQUIRED_MEMBERS - attachments.keys()
+            }
+            return documents, attachments, extra_members
     except zipfile.BadZipFile as exc:
         raise ProjectIOError("工程不是有效的 ZIP 容器") from exc
     except OSError as exc:
@@ -93,8 +107,14 @@ def _read_documents(path: Path) -> tuple[dict[str, dict], bytes, dict[str, bytes
 
 
 def _safe_member_name(name: str) -> bool:
-    path = Path(name)
-    return bool(name) and not path.is_absolute() and ".." not in path.parts and "\\" not in name
+    path = PurePosixPath(name)
+    return (
+        bool(name)
+        and not path.is_absolute()
+        and not PureWindowsPath(name).drive
+        and ".." not in path.parts
+        and "\\" not in name
+    )
 
 
 def _write_archive(
@@ -102,6 +122,7 @@ def _write_archive(
     documents: dict[str, dict],
     thumbnail: bytes,
     attachments: dict[str, bytes] | None = None,
+    extra_members: dict[str, bytes] | None = None,
 ) -> None:
     if not thumbnail.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ProjectIOError("缩略图必须是 PNG")
@@ -119,6 +140,14 @@ def _write_archive(
                     or not name.startswith("attachments/")
                 ):
                     raise ProjectIOError(f"附件路径不安全：{name}")
+                archive.writestr(name, content)
+            for name, content in (extra_members or {}).items():
+                if (
+                    not _safe_member_name(name)
+                    or name in REQUIRED_MEMBERS
+                    or name.startswith("attachments/")
+                ):
+                    raise ProjectIOError(f"扩展成员路径不安全：{name}")
                 archive.writestr(name, content)
         with zipfile.ZipFile(path, "r") as archive:
             if archive.testzip():
@@ -141,12 +170,14 @@ class ProjectStore:
 
     def load(self, path: Path) -> LoadedProject:
         path = Path(path).expanduser().resolve()
-        documents, _, attachments = _read_documents(path)
+        documents, attachments, extra_members = _read_documents(path)
         root = documents["project.json"]
+        if not isinstance(root, dict):
+            raise ProjectIOError("工程 project.json 必须是 JSON 对象；请检查文件或恢复备份。")
         source_version = root.get("format_version")
         try:
             parsed_version = Version.parse(source_version)
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             raise ProjectIOError("工程版本不是有效的语义版本") from exc
         current = Version.parse(CURRENT_FORMAT)
         history = ()
@@ -156,7 +187,8 @@ class ProjectStore:
             read_only = True
             warning = (
                 f"工程版本 {source_version} 高于当前支持版本 {CURRENT_FORMAT}，"
-                "已只读打开，禁止覆盖原文件。"
+                "已只读打开。当前无法保证兼容转换无损，保存和另存为均不可用；"
+                "请使用创建此工程的版本编辑。"
             )
         elif parsed_version < current:
             try:
@@ -171,16 +203,27 @@ class ProjectStore:
         if read_only:
             self.read_only_paths.add(path)
         return LoadedProject(
-            project, path, read_only, warning, history, report, attachments, root_extra
+            project,
+            path,
+            read_only,
+            warning,
+            history,
+            report,
+            attachments,
+            root_extra,
+            extra_members,
         )
 
     def save_loaded(self, loaded: LoadedProject, path: Path | None = None) -> SaveResult:
         """Save a loaded project while preserving optional attachment members."""
+        if loaded.read_only:
+            raise ProjectIOError("工程以只读方式打开，无法保证兼容转换无损；请使用原版本应用。")
         return self.save(
             loaded.project,
             path or loaded.path,
             attachments=loaded.attachments,
             document_extra=loaded.document_extra,
+            extra_members=loaded.extra_members,
         )
 
     def save(
@@ -190,10 +233,13 @@ class ProjectStore:
         *,
         attachments: dict[str, bytes] | None = None,
         document_extra: dict | None = None,
+        extra_members: dict[str, bytes] | None = None,
     ) -> SaveResult:
         path = Path(path).expanduser().resolve()
         if path in self.read_only_paths:
-            raise ProjectIOError("该工程来自更高版本，只读打开，禁止覆盖；请另存为新文件。")
+            raise ProjectIOError("该工程来自更高版本，只读打开，禁止覆盖；请使用原版本应用。")
+        if Version.parse(project.format_version) > Version.parse(CURRENT_FORMAT):
+            raise ProjectIOError("工程来自更高版本，无法保证兼容转换无损；保存和另存为均不可用。")
         if path.suffix.lower() != ".atlasweave":
             raise ProjectIOError("工程文件扩展名必须是 .atlasweave")
         try:
@@ -201,16 +247,18 @@ class ProjectStore:
             thumbnail = render_thumbnail(project)
         except (ValueError, TypeError, UnsupportedDataError) as exc:
             raise ProjectIOError(f"工程无法序列化：{exc}") from exc
-        path.parent.mkdir(parents=True, exist_ok=True)
         temporary = None
         backups = []
         warning = None
         try:
+            path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
             ) as stream:
                 temporary = Path(stream.name)
-            _write_archive(temporary, documents, thumbnail, attachments)
+            _write_archive(temporary, documents, thumbnail, attachments, extra_members)
+            with temporary.open("rb") as stream:
+                os.fsync(stream.fileno())
             # Reopen through the public loader before replacing user data.
             self.load(temporary)
             if path.exists() and self.backup_count:
@@ -306,9 +354,9 @@ class RecentProjects:
         return projects
 
     def _save(self, projects) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = None
         try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 mode="w", encoding="utf-8", dir=self.path.parent, prefix=".recent-", delete=False
             ) as stream:
@@ -334,6 +382,14 @@ class RecentProjects:
                 os.fsync(stream.fileno())
             os.replace(temporary, self.path)
             temporary = None
+        except OSError as exc:
+            logger.exception("最近工程记录无法更新：%s", self.path)
+            raise RecentProjectsError(
+                "最近工程记录无法更新，请检查设置目录权限和磁盘空间；工程文件不受影响。"
+            ) from exc
         finally:
             if temporary:
-                temporary.unlink(missing_ok=True)
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("无法清理最近工程临时文件：%s", temporary)

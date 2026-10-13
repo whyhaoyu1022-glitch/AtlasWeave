@@ -77,7 +77,7 @@ def test_save_as_adds_atlasweave_suffix_and_updates_recent(qtbot, tmp_path, monk
     window.dirty = True
     monkeypatch.setattr(
         "atlasweave.ui.main_window.QFileDialog.getSaveFileName",
-        lambda *args: (str(tmp_path / "test-project"), ""),
+        lambda *args, **kwargs: (str(tmp_path / "test-project"), ""),
     )
     assert window.save_project_as()
     saved = tmp_path / "test-project.atlasweave"

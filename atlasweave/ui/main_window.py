@@ -2,6 +2,7 @@
 
 import logging
 import platform
+from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR, QByteArray, Qt, QUrl
@@ -27,7 +28,13 @@ from PyQt6.QtWidgets import (
 from atlasweave import APP_NAME, __version__
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
 from atlasweave.domain.project import Project
-from atlasweave.services.project_io import ProjectIOError, ProjectStore, RecentProjects
+from atlasweave.services.project_io import (
+    LoadedProject,
+    ProjectIOError,
+    ProjectStore,
+    RecentProjects,
+    RecentProjectsError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,7 @@ class NewProjectDialog(QDialog):
         self.setWindowTitle("新建工程")
         self.setModal(True)
         self.name_edit = QLineEdit("未命名世界")
+        self.name_edit.setMaxLength(80)
         self.name_edit.setObjectName("projectNameEdit")
         self.width_spin = QDoubleSpinBox()
         self.width_spin.setRange(1, 1_000_000)
@@ -118,7 +126,8 @@ class MainWindow(QMainWindow):
         self.interactive = interactive
         self.settings_error: str | None = None
         self.store = ProjectStore()
-        self.recent = RecentProjects(log_directory.parent / "config" / "recent-projects.json")
+        self.recent = RecentProjects(settings.path.parent / "recent-projects.json")
+        self.loaded_project: LoadedProject | None = None
         self.project: Project | None = None
         self.project_path: Path | None = None
         self.dirty = False
@@ -177,16 +186,18 @@ class MainWindow(QMainWindow):
         self._update_actions()
 
     def _open_recent_item(self, item: QListWidgetItem) -> None:
-        self._load_project(Path(item.data(Qt.ItemDataRole.UserRole)))
+        if self._confirm_discard():
+            self._load_project(Path(item.data(Qt.ItemDataRole.UserRole)))
 
     def _update_actions(self) -> None:
         has_project = self.project is not None
-        self.save_action.setEnabled(has_project)
-        self.save_as_action.setEnabled(has_project)
+        writable = has_project and not self.read_only
+        self.save_action.setEnabled(writable)
+        self.save_as_action.setEnabled(writable)
         title = (
             APP_NAME
             if self.project is None
-            else f"{self.project.name}{' *' if self.dirty else ''} - {APP_NAME}"
+            else f"{self.project.name}{'*' if self.dirty else ''} - {APP_NAME}"
         )
         self.setWindowTitle(title)
 
@@ -197,6 +208,7 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.project = dialog.project()
             self.project_path = None
+            self.loaded_project = None
             self.dirty = True
             self._show_project_workspace()
 
@@ -207,22 +219,33 @@ class MainWindow(QMainWindow):
         if path:
             self._load_project(Path(path))
 
-    def _load_project(self, path: Path) -> None:
+    @property
+    def read_only(self) -> bool:
+        return bool(self.loaded_project and self.loaded_project.read_only)
+
+    def _load_project(self, path: Path) -> bool:
         try:
             loaded = self.store.load(path)
         except ProjectIOError as exc:
-            QMessageBox.critical(self, "无法打开工程", str(exc))
-            return
+            logger.exception("工程打开失败：%s", path)
+            self._show_io_message(
+                "无法打开工程", f"{exc}\n请检查文件位置、格式，或尝试打开备份。", exc=exc
+            )
+            return False
+        self.loaded_project = loaded
         self.project = loaded.project
         self.project_path = loaded.path
         self.dirty = False
-        self.recent.touch(loaded.path)
         self._show_project_workspace()
-        if loaded.warning:
-            QMessageBox.warning(self, "工程以只读方式打开", loaded.warning)
+        warnings = [message for message in (loaded.warning, self._touch_recent()) if message]
+        if warnings:
+            self._show_io_message("工程已打开，请留意", "\n".join(warnings), warning=True)
+        return True
 
     def save_project(self) -> bool:
         if self.project is None:
+            return False
+        if not self._can_save():
             return False
         if self.project_path is None:
             return self.save_project_as()
@@ -231,26 +254,105 @@ class MainWindow(QMainWindow):
     def save_project_as(self) -> bool:
         if self.project is None:
             return False
-        path, _ = QFileDialog.getSaveFileName(self, "保存工程", "", "疆理工程 (*.atlasweave)")
+        if not self._can_save():
+            return False
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "保存工程",
+            "",
+            "疆理工程 (*.atlasweave)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
         if not path:
             return False
         target = Path(path)
         if target.suffix.lower() != ".atlasweave":
             target = target.with_suffix(".atlasweave")
+        if target.exists():
+            choice = QMessageBox.question(
+                self,
+                "确认覆盖工程",
+                f"{target}\n已存在，是否覆盖？原文件会按备份设置保留。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if choice != QMessageBox.StandardButton.Yes:
+                return False
         return self._save_to(target)
 
-    def _save_to(self, path: Path) -> bool:
-        try:
-            self.store.save(self.project, path)
-        except ProjectIOError as exc:
-            QMessageBox.critical(self, "无法保存工程", str(exc))
+    def _can_save(self) -> bool:
+        if self.read_only:
+            self._show_io_message(
+                "工程只读，无法保存",
+                "此工程由更高版本创建，当前无法保证兼容转换无损。请使用创建此工程的版本编辑。",
+                warning=True,
+            )
             return False
-        self.project_path = path.resolve()
-        self.dirty = False
-        self.recent.touch(self.project_path)
-        self._update_actions()
-        self.statusBar().showMessage(f"已保存：{self.project_path}")
         return True
+
+    def _save_to(self, path: Path) -> bool:
+        if self.project is None or not self._can_save():
+            return False
+        try:
+            if self.loaded_project is not None:
+                snapshot = replace(self.loaded_project, project=self.project)
+                result = self.store.save_loaded(snapshot, path)
+            else:
+                result = self.store.save(self.project, path)
+        except ProjectIOError as exc:
+            logger.exception("工程保存失败：%s", path)
+            self._show_io_message(
+                "无法保存工程",
+                f"{exc}\n当前修改仍在内存中，请检查目录权限和磁盘空间，或另存到其他位置。",
+                exc=exc,
+            )
+            return False
+        self.project_path = result.path
+        if self.loaded_project is not None:
+            self.loaded_project = replace(
+                self.loaded_project,
+                project=self.project,
+                path=result.path,
+                validation=result.validation,
+            )
+        else:
+            self.loaded_project = LoadedProject(
+                project=self.project, path=result.path, validation=result.validation
+            )
+        self.dirty = False
+        self._update_actions()
+        self.statusBar().showMessage(f"已保存：{self.project_path}", 5000)
+        warnings = [message for message in (result.warning, self._touch_recent()) if message]
+        if warnings:
+            self._show_io_message("工程已保存，请留意", "\n".join(warnings), warning=True)
+        return True
+
+    def _touch_recent(self) -> str | None:
+        if self.project_path is None:
+            return None
+        try:
+            self.recent.touch(self.project_path)
+        except (RecentProjectsError, OSError) as exc:
+            logger.exception("更新最近工程失败：%s", self.project_path)
+            return (
+                "最近工程记录未能更新，已打开或保存的工程不受影响。"
+                f"\n{exc}\n请检查设置目录权限和磁盘空间；下次可以通过“打开工程”选择文件。"
+            )
+        return None
+
+    def _show_io_message(
+        self, title: str, message: str, *, exc: Exception | None = None, warning: bool = False
+    ) -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setIcon(QMessageBox.Icon.Warning if warning else QMessageBox.Icon.Critical)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(message)
+        details = f"日志目录：{self.log_directory}"
+        if exc is not None:
+            details = f"{type(exc).__name__}: {exc}\n{details}"
+        box.setDetailedText(details)
+        box.exec()
 
     def _show_project_workspace(self) -> None:
         workspace = QFrame()
@@ -261,7 +363,12 @@ class MainWindow(QMainWindow):
         label.setObjectName("workspaceTitle")
         layout.addWidget(label)
         self.setCentralWidget(workspace)
-        self.statusBar().showMessage("新工程已创建，保存后即可继续编辑")
+        if self.read_only:
+            self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")
+        elif self.dirty:
+            self.statusBar().showMessage("工程尚未保存")
+        else:
+            self.statusBar().showMessage(f"已打开：{self.project_path}")
         self._update_actions()
 
     def _confirm_discard(self) -> bool:
@@ -274,6 +381,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
         )
         if choice == QMessageBox.StandardButton.Save:
             return self.save_project()

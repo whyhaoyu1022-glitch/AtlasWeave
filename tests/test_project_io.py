@@ -12,6 +12,7 @@ from atlasweave.services.project_io import (
     ProjectIOError,
     ProjectStore,
     RecentProjects,
+    RecentProjectsError,
 )
 from tests.domain_helpers import neighboring_squares
 
@@ -139,7 +140,7 @@ def test_invalid_archive_does_not_modify_anything(tmp_path):
         ProjectStore().load(path)
 
 
-def test_high_version_opens_read_only_and_can_be_saved_as_a_new_file(tmp_path):
+def test_high_version_is_read_only_and_unproven_compatible_copy_is_blocked(tmp_path):
     store = ProjectStore()
     source = tmp_path / "future.atlasweave"
     store.save(realistic_project(), source)
@@ -158,8 +159,11 @@ def test_high_version_opens_read_only_and_can_be_saved_as_a_new_file(tmp_path):
     with pytest.raises(ProjectIOError, match="只读"):
         store.save(loaded.project, source)
     copy = tmp_path / "future-copy.atlasweave"
-    store.save(loaded.project, copy)
-    assert copy.exists()
+    with pytest.raises(ProjectIOError, match="无损"):
+        store.save_loaded(loaded, copy)
+    with pytest.raises(ProjectIOError, match="无损"):
+        store.save(loaded.project, copy)
+    assert not copy.exists()
 
 
 def test_migration_registry_is_forward_only_and_records_history():
@@ -195,3 +199,51 @@ def test_recent_projects_corrupt_file_recovers_as_empty(tmp_path):
     path = tmp_path / "recent.json"
     path.write_text("broken", encoding="utf-8")
     assert RecentProjects(path).load() == ()
+
+
+def test_unknown_zip_members_and_extension_files_survive_resaving(tmp_path):
+    store = ProjectStore()
+    path = tmp_path / "extended.atlasweave"
+    members = {"extensions/terrain.bin": b"\x00\xff", "future-module/info.json": b'{"v":1}'}
+    store.save(realistic_project(), path, extra_members=members)
+    loaded = store.load(path)
+    assert loaded.extra_members == members
+    store.save_loaded(loaded)
+    with zipfile.ZipFile(path) as archive:
+        assert all(archive.read(name) == content for name, content in members.items())
+
+
+@pytest.mark.parametrize("name", ["../future.bin", "C:/future.bin", "/future.bin", "a\\b"])
+def test_unsafe_unknown_member_prevents_opening_and_lossy_resaving(tmp_path, name):
+    path = tmp_path / "unsafe.atlasweave"
+    store = ProjectStore()
+    store.save(realistic_project(), path)
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr(name, b"must not be silently dropped")
+    original = path.read_bytes()
+    with pytest.raises(ProjectIOError, match="路径不安全"):
+        store.load(path)
+    assert path.read_bytes() == original
+
+
+def test_save_directory_creation_error_has_actionable_io_error(tmp_path):
+    parent = tmp_path / "blocked"
+    parent.write_text("not a directory")
+    with pytest.raises(ProjectIOError, match="保存失败"):
+        ProjectStore().save(realistic_project(), parent / "test.atlasweave")
+    assert parent.read_text() == "not a directory"
+
+
+def test_recent_history_write_failure_preserves_old_history_and_cleans_temp(tmp_path, monkeypatch):
+    recent = RecentProjects(tmp_path / "recent.json")
+    recent.touch(tmp_path / "first.atlasweave")
+    before = recent.path.read_bytes()
+
+    def fail_replace(source, target):
+        raise OSError("history read-only")
+
+    monkeypatch.setattr("atlasweave.services.project_io.os.replace", fail_replace)
+    with pytest.raises(RecentProjectsError, match="工程文件不受影响"):
+        recent.touch(tmp_path / "second.atlasweave")
+    assert recent.path.read_bytes() == before
+    assert not list(tmp_path.glob(".recent-*"))
