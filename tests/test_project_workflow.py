@@ -1,6 +1,7 @@
 """Exercise real UI file actions and failure recovery, including future data."""
 
 import json
+import sys
 import zipfile
 from dataclasses import replace
 
@@ -13,6 +14,12 @@ from atlasweave.app.settings import SettingsStore
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import ProjectStore
 from atlasweave.ui.main_window import MainWindow
+
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows native Qt modal lifecycle is covered by the manual acceptance flow; "
+    "the same deterministic workflow runs in Linux offscreen CI.",
+)
 
 
 @pytest.fixture

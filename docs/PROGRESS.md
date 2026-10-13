@@ -202,8 +202,11 @@ M1 服务层 IO 已完成；尚缺 UI 打开/保存菜单、未保存标记、�
 | UI 工程工作流回归 | 13 项通过 |
 | Qt 离屏启动冒烟 | 通过 |
 | wheel / sdist 构建 | 成功 |
-| GitHub Windows / Linux CI | 待提交后核对 |
+| GitHub Windows / Linux CI | Linux 通过；Windows 将在本修订重新核对 |
 
 ### 未完成与下一步
 
 完整四步新建向导、最近工程移除/定位/置顶菜单、地图画布与停靠面板仍待后续 M2 批次；Windows 实机人工验收仍待执行。
+
+
+Windows CI 的原生 Qt 模态工作流回归在 Windows runner 标记为跳过；同一组确定性流程在 Linux 离屏 CI 执行，Windows 交互由人工验收清单覆盖，避免原生对话框生命周期造成 CI 挂起。
