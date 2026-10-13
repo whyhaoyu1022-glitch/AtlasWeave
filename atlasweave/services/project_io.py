@@ -257,7 +257,10 @@ class ProjectStore:
             ) as stream:
                 temporary = Path(stream.name)
             _write_archive(temporary, documents, thumbnail, attachments, extra_members)
-            with temporary.open("rb") as stream:
+            # Windows rejects fsync on a read-only file descriptor. Open the
+            # completed archive read/write so the durability barrier is
+            # portable across the supported platforms.
+            with temporary.open("r+b") as stream:
                 os.fsync(stream.fileno())
             # Reopen through the public loader before replacing user data.
             self.load(temporary)
