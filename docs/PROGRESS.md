@@ -226,8 +226,15 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 |---|---|
 | ruff 检查 | 通过 |
 | 完整 pytest 回归 | 131 项通过 |
-| Windows CI 修复后 | 待提交后核对 |
+| Windows CI 修复后 | Windows / Linux 均通过，见下方证据 |
 
 ### 续接
 
 修复提交后重新运行双平台 CI；若 Windows 测试继续挂起，再根据新的完整日志定位 UI 测试生命周期。恢复完整 IO 失败场景，不再用平台跳过掩盖问题。
+
+
+### 修复提交与 CI 证据
+
+- 修复提交：`e8cfd70976c3f2d628a514f49d057c081a302aba`。
+- [GitHub Actions 运行 38482737436](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38482737436)：Windows / Linux 全部 success。
+- Windows 6 项工程 IO 失败的共同根因为临时 ZIP 以只读句柄调用 `os.fsync`；改为 `r+b` 后完整 131 项回归、构建、wheel 验证和双平台 CI 均通过。
