@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSlider,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -35,6 +37,7 @@ from atlasweave.services.project_io import (
     RecentProjects,
     RecentProjectsError,
 )
+from atlasweave.ui.map_canvas import MapCanvas
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +134,17 @@ class MainWindow(QMainWindow):
         self.project: Project | None = None
         self.project_path: Path | None = None
         self.dirty = False
+        self.canvas = MapCanvas(self)
+        self.canvas.coordinate_changed.connect(self._update_coordinate_status)
+        self.canvas.zoom_changed.connect(self._update_zoom_status)
+        self.canvas.hide()
         self.setObjectName("mainWindow")
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(1180, 720)
         self.resize(1440, 900)
         self.statusBar().setMinimumHeight(24)
         self._create_menus()
+        self._create_navigation_status()
         self._show_welcome()
 
     def _create_menus(self) -> None:
@@ -171,6 +179,49 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("关于疆理(&A)", self)
         self.about_action.triggered.connect(self.show_about)
         help_menu.addAction(self.about_action)
+        view_menu = self.menuBar().addMenu("视图(&V)")
+        self.zoom_in_action = QAction("放大", self)
+        self.zoom_in_action.setShortcut(QKeySequence("Ctrl++"))
+        self.zoom_in_action.triggered.connect(lambda: self.canvas.zoom_by(1.15))
+        view_menu.addAction(self.zoom_in_action)
+        self.zoom_out_action = QAction("缩小", self)
+        self.zoom_out_action.setShortcut(QKeySequence("Ctrl+-"))
+        self.zoom_out_action.triggered.connect(lambda: self.canvas.zoom_by(1 / 1.15))
+        view_menu.addAction(self.zoom_out_action)
+        self.fit_world_action = QAction("适应世界", self)
+        self.fit_world_action.setShortcut(QKeySequence("Ctrl+0"))
+        self.fit_world_action.triggered.connect(self.canvas.fit_world)
+        view_menu.addAction(self.fit_world_action)
+        view_menu.addSeparator()
+        self.pan_action = QAction("平移工具", self)
+        self.pan_action.setCheckable(True)
+        self.pan_action.toggled.connect(self.canvas.set_pan_mode)
+        view_menu.addAction(self.pan_action)
+
+        self.navigation_toolbar = QToolBar("地图导航", self)
+        self.navigation_toolbar.setObjectName("navigationToolbar")
+        self.navigation_toolbar.addAction(self.pan_action)
+        self.navigation_toolbar.addSeparator()
+        self.navigation_toolbar.addAction(self.zoom_out_action)
+        self.navigation_toolbar.addAction(self.zoom_in_action)
+        self.navigation_toolbar.addAction(self.fit_world_action)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.navigation_toolbar)
+        self.navigation_toolbar.hide()
+
+    def _create_navigation_status(self) -> None:
+        self.coordinate_status = QLabel("X —  Y —")
+        self.coordinate_status.setObjectName("worldCoordinateStatus")
+        self.zoom_status = QLabel("缩放 —")
+        self.zoom_status.setObjectName("zoomStatus")
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setObjectName("zoomSlider")
+        self.zoom_slider.setRange(int(MapCanvas.MIN_ZOOM_PERCENT), int(MapCanvas.MAX_ZOOM_PERCENT))
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(140)
+        self.zoom_slider.valueChanged.connect(self.canvas.set_zoom_percent)
+        self.statusBar().addPermanentWidget(self.coordinate_status)
+        self.statusBar().addPermanentWidget(self.zoom_status)
+        self.statusBar().addPermanentWidget(self.zoom_slider)
 
     def _show_welcome(self) -> None:
         page = WelcomePage(self)
@@ -182,6 +233,11 @@ class MainWindow(QMainWindow):
             page.recent_list.addItem(item)
         page.recent_list.itemDoubleClicked.connect(self._open_recent_item)
         self.setCentralWidget(page)
+        self.navigation_toolbar.hide()
+        self.canvas.set_pan_mode(False)
+        self.pan_action.setChecked(False)
+        self.coordinate_status.setText("X —  Y —")
+        self.zoom_status.setText("缩放 —")
         self.statusBar().showMessage("就绪")
         self._update_actions()
 
@@ -200,6 +256,9 @@ class MainWindow(QMainWindow):
             else f"{self.project.name}{'*' if self.dirty else ''} - {APP_NAME}"
         )
         self.setWindowTitle(title)
+        for action in (self.zoom_in_action, self.zoom_out_action, self.fit_world_action):
+            action.setEnabled(has_project)
+        self.pan_action.setEnabled(has_project)
 
     def new_project(self) -> None:
         if not self._confirm_discard():
@@ -358,11 +417,17 @@ class MainWindow(QMainWindow):
         workspace = QFrame()
         workspace.setObjectName("projectWorkspace")
         layout = QVBoxLayout(workspace)
-        label = QLabel(f"{self.project.name if self.project else ''}\n地图工作区")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setObjectName("workspaceTitle")
-        layout.addWidget(label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        if self.project is not None:
+            self.canvas.set_world(
+                self.project.world_width_km,
+                self.project.world_height_km,
+                self.project.map_style,
+            )
+        layout.addWidget(self.canvas)
+        self.canvas.show()
         self.setCentralWidget(workspace)
+        self.navigation_toolbar.show()
         if self.read_only:
             self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")
         elif self.dirty:
@@ -370,6 +435,18 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f"已打开：{self.project_path}")
         self._update_actions()
+
+    def _update_coordinate_status(self, x: float, y: float, inside: bool) -> None:
+        if inside:
+            self.coordinate_status.setText(f"X {x:.2f} km  Y {y:.2f} km")
+        else:
+            self.coordinate_status.setText("X —  Y —")
+
+    def _update_zoom_status(self, percent: float) -> None:
+        self.zoom_status.setText(f"缩放 {percent:.0f}%")
+        self.zoom_slider.blockSignals(True)
+        self.zoom_slider.setValue(round(percent))
+        self.zoom_slider.blockSignals(False)
 
     def _confirm_discard(self) -> bool:
         if not self.dirty:
