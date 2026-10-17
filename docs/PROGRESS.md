@@ -261,7 +261,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | M2 画布专项测试 | 3 项通过；包含坐标往返、缩放锚点、边界、平移和信号 |
 | wheel / sdist 构建 | 成功 |
 | 独立 wheel 安装验证 | 通过 |
-| GitHub Windows / Linux CI | 待本批提交后核对 |
+| GitHub Windows / Linux CI | 运行 39044452085 成功；Linux 134 项通过，Windows 114 项通过、20 项跳过 |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与后续
@@ -269,3 +269,4 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 完整四步新建向导、停靠面板、选择、绘制和编辑命令仍未完成。
 - Windows 现有 20 项跳过测试仍是测试基础设施待办，不作为本批产品目标。
 - 本批提交后必须核对新的 Windows/Linux CI；若出现失败，只修复阻塞主线的回归并如实记录。
+- [GitHub Actions 运行 39044452085](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39044452085)：Windows / Linux 均成功；Windows 跳过项仍按测试基础设施待办记录。
