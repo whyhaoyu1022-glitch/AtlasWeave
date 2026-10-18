@@ -303,5 +303,6 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 验证与未完成
 
-- 新增停靠面板和工程树 UI 测试；完整回归、ruff、构建、wheel 与双平台 CI 结果待提交后补录。
+- 新增停靠面板和工程树 UI 测试；完整回归 138 项通过，ruff 检查和格式检查通过，wheel/sdist 构建、独立 wheel 验证和离屏启动冒烟通过。
+- [GitHub Actions 运行 39173081145](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39173081145)：Windows / Linux 均 success；两平台静态检查、138 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
 - 区域选择、框选、绘制、编辑命令和拖放仍属于后续 M2/M3 批次；Windows 10/11 实机验收仍待执行。
