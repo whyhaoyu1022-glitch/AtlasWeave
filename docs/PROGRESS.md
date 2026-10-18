@@ -285,5 +285,6 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 验证与未完成
 
-- 本地窗口回归：`tests/test_window.py` 6 项通过；全量回归、ruff、构建和 CI 待本轮提交后记录实际结果。
+- 本地窗口回归：`tests/test_window.py` 6 项通过；向导专项 3 项通过；完整回归 137 项通过；ruff 检查和格式检查通过；wheel/sdist 构建成功。
+- [GitHub Actions 运行 39089621488](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39089621488)：Windows / Linux 均 success；两平台静态检查、137 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
 - Windows 10/11 原生模态窗口和高 DPI 仍需每周人工验收；停靠面板、选择、绘制和编辑属于后续 M2/M3 批次。
