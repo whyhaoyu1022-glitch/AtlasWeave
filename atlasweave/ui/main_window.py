@@ -2,18 +2,21 @@
 
 import logging
 import platform
+import re
 from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR, QByteArray, Qt, QUrl
 from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -22,6 +25,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QStackedWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -29,6 +33,7 @@ from PyQt6.QtWidgets import (
 
 from atlasweave import APP_NAME, __version__
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
+from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import (
     LoadedProject,
@@ -42,16 +47,34 @@ from atlasweave.ui.map_canvas import MapCanvas
 logger = logging.getLogger(__name__)
 
 
+def _safe_project_filename(name: str) -> str:
+    """Return a Windows-safe project stem without silently dropping the name."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name.strip())
+    cleaned = cleaned.rstrip(" .") or "未命名世界"
+    if cleaned.upper() in {"CON", "PRN", "AUX", "NUL"}:
+        cleaned = f"_{cleaned}"
+    return cleaned[:120]
+
+
 class NewProjectDialog(QDialog):
-    """Collect the minimum real project data required by the M2 workflow."""
+    """Four-step M2 project wizard that creates only valid, persisted projects."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("新建工程")
+        self.setWindowTitle("新建工程向导")
+        self.setMinimumSize(720, 520)
         self.setModal(True)
         self.name_edit = QLineEdit("未命名世界")
         self.name_edit.setMaxLength(80)
         self.name_edit.setObjectName("projectNameEdit")
+        self.author_edit = QLineEdit()
+        self.author_edit.setObjectName("projectAuthorEdit")
+        self.description_edit = QLineEdit()
+        self.description_edit.setObjectName("projectDescriptionEdit")
+        self.path_edit = QLineEdit()
+        self.path_edit.setObjectName("projectPathEdit")
+        self.browse_button = QPushButton("选择目录")
+        self.browse_button.clicked.connect(self._browse_directory)
         self.width_spin = QDoubleSpinBox()
         self.width_spin.setRange(1, 1_000_000)
         self.width_spin.setValue(1200)
@@ -60,32 +83,204 @@ class NewProjectDialog(QDialog):
         self.height_spin.setRange(1, 1_000_000)
         self.height_spin.setValue(800)
         self.height_spin.setSuffix(" km")
-        form = QFormLayout()
+        self.path_edit.setText(str(Path.home() / "AtlasWeave"))
+        self.levels = ["国家级", "省级", "市级", "县级"]
+        self.level_list = QListWidget()
+        self.level_list.setObjectName("hierarchyLevelList")
+        self.level_list.addItems(self.levels)
+        self.level_add = QPushButton("添加层级")
+        self.level_remove = QPushButton("删除")
+        self.level_up = QPushButton("上移")
+        self.level_down = QPushButton("下移")
+        self.level_add.clicked.connect(self._add_level)
+        self.level_remove.clicked.connect(self._remove_level)
+        self.level_up.clicked.connect(lambda: self._move_level(-1))
+        self.level_down.clicked.connect(lambda: self._move_level(1))
+        self.draw_after_create = QCheckBox("创建后进入国土轮廓绘制准备")
+        self.draw_after_create.setChecked(True)
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self._basic_page())
+        self.stack.addWidget(self._world_page())
+        self.stack.addWidget(self._levels_page())
+        self.stack.addWidget(self._finish_page())
+        self.step_label = QLabel("步骤 1/4：基本信息")
+        self.back_button = QPushButton("上一步")
+        self.next_button = QPushButton("下一步")
+        self.create_button = QPushButton("创建工程")
+        self.create_button.hide()
+        cancel = QPushButton("取消")
+        self.back_button.clicked.connect(self._back)
+        self.next_button.clicked.connect(self._next)
+        self.create_button.clicked.connect(self._accept)
+        cancel.clicked.connect(self.reject)
+        buttons = QDialogButtonBox()
+        buttons.addButton(self.back_button, QDialogButtonBox.ButtonRole.ActionRole)
+        buttons.addButton(self.next_button, QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(self.create_button, QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(cancel, QDialogButtonBox.ButtonRole.RejectRole)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.step_label)
+        layout.addWidget(self.stack, 1)
+        layout.addWidget(buttons)
+        self._update_navigation()
+
+    def _basic_page(self) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
         form.addRow("工程名称", self.name_edit)
+        form.addRow("作者", self.author_edit)
+        form.addRow("说明", self.description_edit)
+        path_row = QWidget()
+        row = QVBoxLayout(path_row)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.path_edit)
+        row.addWidget(self.browse_button)
+        form.addRow("保存目录", path_row)
+        return page
+
+    def _world_page(self) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        presets = QWidget()
+        p = QVBoxLayout(presets)
+        p.setContentsMargins(0, 0, 0, 0)
+        for label, width, height in (
+            ("大陆 1200×800", 1200, 800),
+            ("大洲 2400×1600", 2400, 1600),
+            ("行星 40000×20000", 40000, 20000),
+            ("自定义", None, None),
+        ):
+            button = QPushButton(label)
+            p.addWidget(button)
+            if width:
+                button.clicked.connect(
+                    lambda _, w=width, h=height: (
+                        self.width_spin.setValue(w),
+                        self.height_spin.setValue(h),
+                    )
+                )
+        form.addRow("尺寸预设", presets)
         form.addRow("世界宽度", self.width_spin)
         form.addRow("世界高度", self.height_spin)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self._accept)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("创建一个可保存的空白疆域工程。"))
-        layout.addLayout(form)
-        layout.addWidget(buttons)
+        return page
 
-    def _accept(self) -> None:
-        if not self.name_edit.text().strip():
+    def _levels_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addWidget(QLabel("至少保留一层，最多十层，层级名称不得重复。"))
+        layout.addWidget(self.level_list)
+        row = QHBoxLayout()
+        for button in (self.level_add, self.level_remove, self.level_up, self.level_down):
+            row.addWidget(button)
+        layout.addLayout(row)
+        return page
+
+    def _finish_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addWidget(QLabel("请确认工程信息。"))
+        layout.addWidget(self.summary)
+        layout.addWidget(self.draw_after_create)
+        return page
+
+    def _browse_directory(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "选择工程目录", self.path_edit.text())
+        if path:
+            self.path_edit.setText(path)
+
+    def _add_level(self) -> None:
+        from PyQt6.QtWidgets import QInputDialog
+
+        name, ok = QInputDialog.getText(self, "添加层级", "层级名称")
+        if (
+            ok
+            and name.strip()
+            and name.strip()
+            not in [self.level_list.item(i).text() for i in range(self.level_list.count())]
+            and self.level_list.count() < 10
+        ):
+            self.level_list.addItem(name.strip())
+
+    def _remove_level(self) -> None:
+        if self.level_list.count() > 1 and self.level_list.currentRow() >= 0:
+            self.level_list.takeItem(self.level_list.currentRow())
+
+    def _move_level(self, delta: int) -> None:
+        row = self.level_list.currentRow()
+        target = row + delta
+        if 0 <= row < self.level_list.count() and 0 <= target < self.level_list.count():
+            item = self.level_list.takeItem(row)
+            self.level_list.insertItem(target, item)
+            self.level_list.setCurrentRow(target)
+
+    def _next(self) -> None:
+        if self.stack.currentIndex() == 0 and not self.name_edit.text().strip():
             QMessageBox.warning(self, "名称不能为空", "请输入工程名称。")
             return
+        if self.stack.currentIndex() == 2:
+            names = [self.level_list.item(i).text().strip() for i in range(self.level_list.count())]
+            if not names or any(not n for n in names) or len(set(names)) != len(names):
+                QMessageBox.warning(self, "层级无效", "层级名称不能为空且不能重复。")
+                return
+        self.stack.setCurrentIndex(self.stack.currentIndex() + 1)
+        if self.stack.currentIndex() == 3:
+            self._refresh_summary()
+        self._update_navigation()
+
+    def _back(self) -> None:
+        if self.stack.currentIndex() > 0:
+            self.stack.setCurrentIndex(self.stack.currentIndex() - 1)
+        self._update_navigation()
+
+    def _accept(self) -> None:
+        names = self.levels_from_ui()
+        if not self.name_edit.text().strip() or not names or len(set(names)) != len(names):
+            QMessageBox.warning(self, "信息无效", "请检查工程名称和行政层级名称。")
+            return
         self.accept()
+
+    def _update_navigation(self) -> None:
+        index = self.stack.currentIndex()
+        self.step_label.setText(
+            f"步骤 {index + 1}/4：{('基本信息', '世界尺寸', '行政层级', '完成')[index]}"
+        )
+        self.back_button.setEnabled(index > 0)
+        self.next_button.setVisible(index < 3)
+        self.create_button.setVisible(index == 3)
+
+    def _refresh_summary(self) -> None:
+        levels = "、".join(self.level_list.item(i).text() for i in range(self.level_list.count()))
+        summary = (
+            f"工程：{self.name_edit.text().strip()}\n"
+            f"作者：{self.author_edit.text().strip() or '未填写'}\n"
+            f"世界：{self.width_spin.value():g} × {self.height_spin.value():g} km\n"
+            f"层级：{levels}\n文件：{self.target_path()}"
+        )
+        self.summary.setText(summary)
+
+    def target_path(self) -> Path:
+        return (
+            Path(self.path_edit.text()).expanduser()
+            / f"{_safe_project_filename(self.name_edit.text())}.atlasweave"
+        )
 
     def project(self) -> Project:
         return Project(
             name=self.name_edit.text().strip(),
+            description=self.description_edit.text().strip(),
             world_width_km=self.width_spin.value(),
             world_height_km=self.height_spin.value(),
+            hierarchy_levels=tuple(
+                HierarchyLevel(order=i, name=name, default_type_name=name.rstrip("级"))
+                for i, name in enumerate(self.levels_from_ui())
+            ),
+            metadata={"author": self.author_edit.text().strip()},
         )
+
+    def levels_from_ui(self) -> list[str]:
+        return [self.level_list.item(i).text().strip() for i in range(self.level_list.count())]
 
 
 class WelcomePage(QFrame):
@@ -265,11 +460,24 @@ class MainWindow(QMainWindow):
             return
         dialog = NewProjectDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.project = dialog.project()
-            self.project_path = None
-            self.loaded_project = None
-            self.dirty = True
+            project = dialog.project()
+            target = dialog.target_path()
+            try:
+                result = self.store.save(project, target)
+            except ProjectIOError as exc:
+                self._show_io_message("无法创建工程", f"{exc}\n请检查保存目录权限。", exc=exc)
+                return
+            self.project = project
+            self.project_path = result.path
+            self.loaded_project = LoadedProject(
+                project=project, path=result.path, validation=result.validation
+            )
+            self.dirty = False
             self._show_project_workspace()
+            warning = self._touch_recent()
+            if warning:
+                self._show_io_message("工程已创建，请留意", warning, warning=True)
+            self.statusBar().showMessage(f"已创建：{self.project_path}", 5000)
 
     def open_project(self) -> None:
         if not self._confirm_discard():
