@@ -19,6 +19,7 @@ class SettingsError(Exception):
 @dataclass(frozen=True)
 class WindowSettings:
     geometry: bytes = b""
+    window_state: bytes = b""
 
 
 class SettingsStore:
@@ -38,8 +39,12 @@ class SettingsStore:
             if not isinstance(encoded, str):
                 raise ValueError("窗口位置格式无效")
             geometry = base64.b64decode(encoded, validate=True)
+            state_encoded = raw.get("window_state", "")
+            if not isinstance(state_encoded, str):
+                raise ValueError("停靠布局格式无效")
+            window_state = base64.b64decode(state_encoded, validate=True)
             self._document = raw  # Preserve fields added by other versions.
-            return WindowSettings(geometry=geometry)
+            return WindowSettings(geometry=geometry, window_state=window_state)
         except (OSError, ValueError, binascii.Error) as exc:
             # Never overwrite a corrupt/unknown settings file with defaults on exit.
             self._writable = False
@@ -51,7 +56,9 @@ class SettingsStore:
             raise SettingsError("原设置文件需要检查，本次未覆盖它。")
         document = dict(self._document)
         document.update(
-            version=1, window_geometry=base64.b64encode(settings.geometry).decode("ascii")
+            version=1,
+            window_geometry=base64.b64encode(settings.geometry).decode("ascii"),
+            window_state=base64.b64encode(settings.window_state).decode("ascii"),
         )
         temporary: Path | None = None
         try:

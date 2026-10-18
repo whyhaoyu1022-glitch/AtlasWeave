@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -23,10 +24,16 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSlider,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
     QToolBar,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -323,6 +330,7 @@ class MainWindow(QMainWindow):
         self.log_directory = log_directory
         self.interactive = interactive
         self.settings_error: str | None = None
+        self._has_restored_dock_state = False
         self.store = ProjectStore()
         self.recent = RecentProjects(settings.path.parent / "recent-projects.json")
         self.loaded_project: LoadedProject | None = None
@@ -333,6 +341,7 @@ class MainWindow(QMainWindow):
         self.canvas.coordinate_changed.connect(self._update_coordinate_status)
         self.canvas.zoom_changed.connect(self._update_zoom_status)
         self.canvas.hide()
+        self._create_docks()
         self.setObjectName("mainWindow")
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(1180, 720)
@@ -341,6 +350,138 @@ class MainWindow(QMainWindow):
         self._create_menus()
         self._create_navigation_status()
         self._show_welcome()
+
+    def _create_docks(self) -> None:
+        """Create the real M2 workspace panels; content is refreshed per project."""
+        self.project_tree = QTreeWidget()
+        self.project_tree.setObjectName("projectTree")
+        self.project_tree.setHeaderLabels(["名称", "类型"])
+        self.project_tree.currentItemChanged.connect(self._project_tree_changed)
+        layers = QListWidget()
+        layers.setObjectName("layerList")
+        layers.addItem("基础地图")
+        left_tabs = QTabWidget()
+        left_tabs.setObjectName("leftPanelTabs")
+        left_tabs.addTab(self.project_tree, "区划树")
+        left_tabs.addTab(layers, "图层")
+        self.project_dock = QDockWidget("工程与区划", self)
+        self.project_dock.setObjectName("projectDock")
+        self.project_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.project_dock.setWidget(left_tabs)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
+
+        self.property_label = QLabel("未选择工程")
+        self.property_label.setObjectName("propertyPanelContent")
+        self.property_label.setWordWrap(True)
+        property_page = QWidget()
+        property_layout = QVBoxLayout(property_page)
+        property_layout.addWidget(self.property_label)
+        property_layout.addStretch(1)
+        style_page = QLabel("当前工程样式将随样式编辑功能接入。")
+        style_page.setWordWrap(True)
+        right_tabs = QTabWidget()
+        right_tabs.setObjectName("rightPanelTabs")
+        right_tabs.addTab(property_page, "属性")
+        right_tabs.addTab(style_page, "样式")
+        self.property_dock = QDockWidget("属性与样式", self)
+        self.property_dock.setObjectName("propertyDock")
+        self.property_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
+        self.property_dock.setWidget(right_tabs)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.property_dock)
+
+        self.issue_panel = QPlainTextEdit()
+        self.issue_panel.setObjectName("issuePanel")
+        self.issue_panel.setReadOnly(True)
+        self.issue_panel.setPlainText("当前没有校验问题。")
+        self.region_table = QTableWidget(0, 3)
+        self.region_table.setObjectName("regionTable")
+        self.region_table.setHorizontalHeaderLabels(["名称", "层级", "状态"])
+        self.operation_log = QPlainTextEdit()
+        self.operation_log.setObjectName("operationLog")
+        self.operation_log.setReadOnly(True)
+        bottom_tabs = QTabWidget()
+        bottom_tabs.setObjectName("bottomPanelTabs")
+        bottom_tabs.addTab(self.issue_panel, "问题")
+        bottom_tabs.addTab(self.region_table, "区域数据")
+        bottom_tabs.addTab(self.operation_log, "操作日志")
+        self.bottom_dock = QDockWidget("问题与数据", self)
+        self.bottom_dock.setObjectName("bottomDock")
+        self.bottom_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea)
+        self.bottom_dock.setWidget(bottom_tabs)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.bottom_dock)
+        self._dock_widgets = (self.project_dock, self.property_dock, self.bottom_dock)
+        self._default_dock_state = bytes(self.saveState(1))
+        for dock in self._dock_widgets:
+            dock.hide()
+        self.bottom_dock.hide()
+
+    def _create_panel_actions(self, view_menu) -> None:
+        panel_menu = view_menu.addMenu("面板")
+        for dock in self._dock_widgets:
+            panel_menu.addAction(dock.toggleViewAction())
+        panel_menu.addSeparator()
+        self.reset_workspace_action = QAction("重置工作区布局", self)
+        self.reset_workspace_action.triggered.connect(self.reset_workspace_layout)
+        panel_menu.addAction(self.reset_workspace_action)
+
+    def reset_workspace_layout(self) -> None:
+        self.restoreState(QByteArray(self._default_dock_state), 1)
+        self._set_workspace_docks_visible(True)
+        self.bottom_dock.hide()
+        self.statusBar().showMessage("工作区布局已重置", 4000)
+
+    def _set_workspace_docks_visible(self, visible: bool) -> None:
+        self.project_dock.setVisible(visible)
+        self.property_dock.setVisible(visible)
+        if not visible:
+            self.bottom_dock.hide()
+
+    def _refresh_project_tree(self) -> None:
+        self.project_tree.clear()
+        self.region_table.setRowCount(0)
+        if self.project is None:
+            return
+        root = QTreeWidgetItem([self.project.name, "工程"])
+        root.setData(0, Qt.ItemDataRole.UserRole, self.project.id)
+        self.project_tree.addTopLevelItem(root)
+        regions_by_level = {level.id: [] for level in self.project.hierarchy_levels}
+        for region in self.project.regions.values():
+            regions_by_level.setdefault(region.level_id, []).append(region)
+        for level in self.project.hierarchy_levels:
+            level_item = QTreeWidgetItem([level.name, level.default_type_name])
+            level_item.setData(0, Qt.ItemDataRole.UserRole, level.id)
+            root.addChild(level_item)
+            for region in regions_by_level.get(level.id, []):
+                child = QTreeWidgetItem([region.name, region.type_name])
+                child.setData(0, Qt.ItemDataRole.UserRole, region.id)
+                level_item.addChild(child)
+                row = self.region_table.rowCount()
+                self.region_table.insertRow(row)
+                self.region_table.setItem(row, 0, QTableWidgetItem(region.name))
+                self.region_table.setItem(row, 1, QTableWidgetItem(level.name))
+                self.region_table.setItem(row, 2, QTableWidgetItem(str(region.status)))
+        root.setExpanded(True)
+        self.project_tree.expandAll()
+        author = self.project.metadata.get("author", "未填写")
+        self.property_label.setText(
+            f"工程：{self.project.name}\n作者：{author}\n"
+            f"说明：{self.project.description or '未填写'}\n"
+            f"世界：{self.project.world_width_km:g} × {self.project.world_height_km:g} km\n"
+            f"层级：{len(self.project.hierarchy_levels)}"
+        )
+
+    def _project_tree_changed(self, current, _previous) -> None:
+        if current is None or self.project is None:
+            return
+        value = current.data(0, Qt.ItemDataRole.UserRole)
+        for region in self.project.regions.values():
+            if region.id == value:
+                self.property_label.setText(
+                    f"区域：{region.name}\n类型：{region.type_name}\n状态：{region.status}"
+                )
+                self.statusBar().showMessage(f"已定位：{region.name}", 3000)
+                return
+        self.statusBar().showMessage(f"当前层级：{current.text(0)}", 3000)
 
     def _create_menus(self) -> None:
         file_menu = self.menuBar().addMenu("文件(&F)")
@@ -392,6 +533,7 @@ class MainWindow(QMainWindow):
         self.pan_action.setCheckable(True)
         self.pan_action.toggled.connect(self.canvas.set_pan_mode)
         view_menu.addAction(self.pan_action)
+        self._create_panel_actions(view_menu)
 
         self.navigation_toolbar = QToolBar("地图导航", self)
         self.navigation_toolbar.setObjectName("navigationToolbar")
@@ -402,6 +544,7 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.addAction(self.fit_world_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.navigation_toolbar)
         self.navigation_toolbar.hide()
+        self._set_workspace_docks_visible(False)
 
     def _create_navigation_status(self) -> None:
         self.coordinate_status = QLabel("X —  Y —")
@@ -636,6 +779,9 @@ class MainWindow(QMainWindow):
         self.canvas.show()
         self.setCentralWidget(workspace)
         self.navigation_toolbar.show()
+        if not self._has_restored_dock_state:
+            self._set_workspace_docks_visible(True)
+        self._refresh_project_tree()
         if self.read_only:
             self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")
         elif self.dirty:
@@ -675,6 +821,10 @@ class MainWindow(QMainWindow):
     def restore_window(self, state: WindowSettings) -> None:
         if state.geometry and not self.restoreGeometry(QByteArray(state.geometry)):
             logger.warning("Invalid window geometry; using default layout")
+        if state.window_state and not self.restoreState(QByteArray(state.window_state), 1):
+            logger.warning("Invalid dock layout; using default layout")
+        elif state.window_state:
+            self._has_restored_dock_state = True
 
     def open_log_directory(self) -> None:
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.log_directory.resolve()))):
@@ -697,7 +847,12 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         try:
-            self.settings.save(WindowSettings(geometry=bytes(self.saveGeometry())))
+            self.settings.save(
+                WindowSettings(
+                    geometry=bytes(self.saveGeometry()),
+                    window_state=bytes(self.saveState(1)),
+                )
+            )
         except SettingsError as exc:
             self.settings_error = str(exc)
             if self.interactive:

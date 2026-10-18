@@ -85,3 +85,21 @@ def test_save_as_adds_atlasweave_suffix_and_updates_recent(qtbot, tmp_path, monk
     assert window.project_path == saved.resolve()
     assert not window.dirty
     assert window.recent.load()[0].path == saved.resolve()
+
+
+def test_project_workspace_exposes_real_docks_and_tree(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.show()
+    window.project = Project(name="导航测试")
+    window._show_project_workspace()
+    assert window.project_dock.objectName() == "projectDock"
+    assert window.property_dock.objectName() == "propertyDock"
+    assert window.bottom_dock.objectName() == "bottomDock"
+    assert window.project_dock.isVisible()
+    assert window.project_tree.topLevelItem(0).text(0) == "导航测试"
+    assert window.project_tree.topLevelItem(0).childCount() == 1
+    window.project_dock.hide()
+    window.reset_workspace_layout()
+    assert window.project_dock.isVisible()
+    assert not window.bottom_dock.isVisible()
