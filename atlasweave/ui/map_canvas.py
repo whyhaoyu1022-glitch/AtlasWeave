@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
 
@@ -19,6 +19,7 @@ class MapCanvas(QWidget):
 
     coordinate_changed = pyqtSignal(float, float, bool)
     zoom_changed = pyqtSignal(float)
+    selection_changed = pyqtSignal(object)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -38,6 +39,11 @@ class MapCanvas(QWidget):
         self._pan_mode = False
         self._dragging = False
         self._drag_last = QPointF()
+        self._regions: dict[str, dict] = {}
+        self._selected_ids: set[str] = set()
+        self._selection_origin: QPointF | None = None
+        self._selection_rect: QRectF | None = None
+        self._selecting = False
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -75,6 +81,65 @@ class MapCanvas(QWidget):
             Qt.CursorShape.OpenHandCursor if self._pan_mode else Qt.CursorShape.ArrowCursor
         )
         self.update()
+
+    @property
+    def selected_region_ids(self) -> frozenset[str]:
+        return frozenset(self._selected_ids)
+
+    @property
+    def selected_area_km2(self) -> float:
+        return sum(
+            self._regions[region_id]["area"]
+            for region_id in self._selected_ids
+            if region_id in self._regions
+        )
+
+    def set_regions(self, regions: Mapping, topology) -> None:
+        """Load real region faces for rendering and hit testing."""
+        records: dict[str, dict] = {}
+        for region_id, region in regions.items():
+            if not region.visible:
+                records[region_id] = {"region": region, "paths": (), "area": 0.0}
+                continue
+            paths = []
+            area = 0.0
+            try:
+                for face_id in region.face_ids:
+                    polygon = topology.face_polygon(face_id)
+                    outer = topology.ring_points(topology.faces[face_id].outer_ring_id)
+                    path = QPainterPath()
+                    path.setFillRule(Qt.FillRule.OddEvenFill)
+                    path.addPolygon(QPolygonF([QPointF(p.x, p.y) for p in outer]))
+                    for ring_id in topology.faces[face_id].inner_ring_ids:
+                        hole = topology.ring_points(ring_id)
+                        path.addPolygon(QPolygonF([QPointF(p.x, p.y) for p in hole]))
+                    paths.append(path)
+                    area += float(polygon.area)
+            except (KeyError, ValueError, TypeError):
+                paths = []
+                area = 0.0
+            records[region_id] = {"region": region, "paths": tuple(paths), "area": area}
+        self._regions = records
+        self._selected_ids.intersection_update(records)
+        self.selection_changed.emit(tuple(sorted(self._selected_ids)))
+        self.update()
+
+    def clear_regions(self) -> None:
+        self._regions = {}
+        self.clear_selection()
+
+    def set_selection(self, region_ids, *, additive: bool = False) -> None:
+        ids = {region_id for region_id in region_ids if region_id in self._regions}
+        if additive:
+            ids ^= self._selected_ids
+        if ids == self._selected_ids:
+            return
+        self._selected_ids = ids
+        self.selection_changed.emit(tuple(sorted(ids)))
+        self.update()
+
+    def clear_selection(self) -> None:
+        self.set_selection(())
 
     def fit_world(self) -> None:
         self._zoom_percent = 100.0
@@ -132,7 +197,19 @@ class MapCanvas(QWidget):
         painter.setPen(QPen(QColor("#6B7280"), 1.0))
         painter.drawRect(world_rect)
 
-        if self._world_width > 0 and self._world_height > 0:
+        for region_id, record in self._regions.items():
+            if not record["paths"]:
+                continue
+            selected = region_id in self._selected_ids
+            painter.setBrush(QBrush(QColor("#1769E0" if selected else "#E8EEF5")))
+            painter.setPen(
+                QPen(QColor("#1769E0" if selected else "#8A99A8"), 2.0 if selected else 1.0)
+            )
+            for path in record["paths"]:
+                screen_path = self._screen_path(path)
+                painter.drawPath(screen_path)
+
+        if not self._regions and self._world_width > 0 and self._world_height > 0:
             message = "还没有疆界"
             hint = "完成 M3 区域绘制后，可从这里开始创建第一个顶级区域"
             font = QFont(self.font())
@@ -154,9 +231,18 @@ class MapCanvas(QWidget):
                 Qt.AlignmentFlag.AlignCenter,
                 hint,
             )
+        if self._selection_rect is not None:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor("#1769E0"), 1.0, Qt.PenStyle.DashLine))
+            painter.drawRect(self._selection_rect.normalized())
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         point = event.position()
+        if self._selection_origin is not None and not self._dragging:
+            if (point - self._selection_origin).manhattanLength() >= 4:
+                self._selecting = True
+                self._selection_rect = QRectF(self._selection_origin, point)
+                self.update()
         if self._dragging:
             delta = point - self._drag_last
             self._pan += delta
@@ -182,6 +268,13 @@ class MapCanvas(QWidget):
             self.setFocus()
             event.accept()
             return
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._selection_origin = QPointF(event.position())
+            self._selection_rect = QRectF(self._selection_origin, self._selection_origin)
+            self._selecting = False
+            self.setFocus()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt API
@@ -190,6 +283,28 @@ class MapCanvas(QWidget):
             self.setCursor(
                 Qt.CursorShape.OpenHandCursor if self._pan_mode else Qt.CursorShape.ArrowCursor
             )
+            event.accept()
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self._selection_origin is not None:
+            end = QPointF(event.position())
+            rect = QRectF(self._selection_origin, end).normalized()
+            modifiers = event.modifiers()
+            if self._selecting and rect.width() >= 4 and rect.height() >= 4:
+                candidates = self._regions_in_rect(rect, end.x() >= self._selection_origin.x())
+                if modifiers & Qt.KeyboardModifier.ControlModifier:
+                    self.set_selection(candidates, additive=True)
+                else:
+                    self.set_selection(candidates)
+            else:
+                hit = self._hit_test(end)
+                if modifiers & Qt.KeyboardModifier.ControlModifier:
+                    self.set_selection([hit], additive=True) if hit else None
+                else:
+                    self.set_selection([hit] if hit else ())
+            self._selection_origin = None
+            self._selection_rect = None
+            self._selecting = False
+            self.update()
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -206,7 +321,10 @@ class MapCanvas(QWidget):
             event.accept()
             return
         if event.key() == Qt.Key.Key_Escape:
-            self.fit_world()
+            if self._selected_ids:
+                self.clear_selection()
+            else:
+                self.fit_world()
             event.accept()
             return
         super().keyPressEvent(event)
@@ -248,3 +366,33 @@ class MapCanvas(QWidget):
         rect = QRectF(0.0, 0.0, self._world_width, self._world_height)
         inside = rect.contains(world)
         self.coordinate_changed.emit(world.x(), world.y(), inside)
+
+    def _screen_path(self, path: QPainterPath) -> QPainterPath:
+        result = QPainterPath()
+        for polygon in path.toFillPolygons():
+            result.addPolygon(QPolygonF([self.world_to_screen(point) for point in polygon]))
+        result.setFillRule(path.fillRule())
+        return result
+
+    def _hit_test(self, point: QPointF) -> str | None:
+        for region_id, record in reversed(tuple(self._regions.items())):
+            if not record["region"].visible:
+                continue
+            if any(self._screen_path(path).contains(point) for path in record["paths"]):
+                return region_id
+        return None
+
+    def _regions_in_rect(self, rect: QRectF, contained: bool) -> list[str]:
+        result = []
+        area_path = QPainterPath()
+        area_path.addRect(rect)
+        for region_id, record in self._regions.items():
+            if not record["region"].visible:
+                continue
+            paths = [self._screen_path(path) for path in record["paths"]]
+            if contained:
+                if paths and all(rect.contains(path.boundingRect()) for path in paths):
+                    result.append(region_id)
+            elif any(area_path.intersects(path) for path in paths):
+                result.append(region_id)
+        return result

@@ -9,6 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR, QByteArray, Qt, QUrl
 from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
@@ -340,6 +341,7 @@ class MainWindow(QMainWindow):
         self.canvas = MapCanvas(self)
         self.canvas.coordinate_changed.connect(self._update_coordinate_status)
         self.canvas.zoom_changed.connect(self._update_zoom_status)
+        self.canvas.selection_changed.connect(self._canvas_selection_changed)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -356,6 +358,7 @@ class MainWindow(QMainWindow):
         self.project_tree = QTreeWidget()
         self.project_tree.setObjectName("projectTree")
         self.project_tree.setHeaderLabels(["名称", "类型"])
+        self.project_tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.project_tree.currentItemChanged.connect(self._project_tree_changed)
         layers = QListWidget()
         layers.setObjectName("layerList")
@@ -440,7 +443,9 @@ class MainWindow(QMainWindow):
         self.project_tree.clear()
         self.region_table.setRowCount(0)
         if self.project is None:
+            self.canvas.clear_regions()
             return
+        self.canvas.set_regions(self.project.regions, self.project.topology)
         root = QTreeWidgetItem([self.project.name, "工程"])
         root.setData(0, Qt.ItemDataRole.UserRole, self.project.id)
         self.project_tree.addTopLevelItem(root)
@@ -471,17 +476,63 @@ class MainWindow(QMainWindow):
         )
 
     def _project_tree_changed(self, current, _previous) -> None:
-        if current is None or self.project is None:
+        if self.project is None:
+            return
+        if current is None:
+            self.canvas.clear_selection()
             return
         value = current.data(0, Qt.ItemDataRole.UserRole)
         for region in self.project.regions.values():
             if region.id == value:
+                self.canvas.set_selection([region.id])
                 self.property_label.setText(
                     f"区域：{region.name}\n类型：{region.type_name}\n状态：{region.status}"
                 )
                 self.statusBar().showMessage(f"已定位：{region.name}", 3000)
                 return
+        region_ids = [
+            region.id for region in self.project.regions.values() if region.level_id == value
+        ]
+        if region_ids:
+            self.canvas.set_selection(region_ids)
+        else:
+            self.canvas.clear_selection()
         self.statusBar().showMessage(f"当前层级：{current.text(0)}", 3000)
+
+    def _canvas_selection_changed(self, region_ids) -> None:
+        selected = tuple(region_ids)
+        count = len(selected)
+        area = self.canvas.selected_area_km2
+        self.selection_status.setText(
+            "未选择" if not count else f"已选择 {count} 个区域 · {area:g} km²"
+        )
+        if self.project is None:
+            return
+        self.project_tree.blockSignals(True)
+        try:
+            for item in self._tree_items():
+                value = item.data(0, Qt.ItemDataRole.UserRole)
+                item.setSelected(value in selected)
+            if len(selected) == 1 and selected[0] in self.project.regions:
+                region = self.project.regions[selected[0]]
+                self.property_label.setText(
+                    f"区域：{region.name}\n类型：{region.type_name}\n状态：{region.status}"
+                )
+            elif count > 1:
+                self.property_label.setText(f"已选择 {count} 个区域\n面积：{area:g} km²")
+            else:
+                self.property_label.setText(f"工程：{self.project.name}")
+        finally:
+            self.project_tree.blockSignals(False)
+
+    def _tree_items(self):
+        def walk(item):
+            yield item
+            for index in range(item.childCount()):
+                yield from walk(item.child(index))
+
+        for index in range(self.project_tree.topLevelItemCount()):
+            yield from walk(self.project_tree.topLevelItem(index))
 
     def _create_menus(self) -> None:
         file_menu = self.menuBar().addMenu("文件(&F)")
@@ -551,6 +602,8 @@ class MainWindow(QMainWindow):
         self.coordinate_status.setObjectName("worldCoordinateStatus")
         self.zoom_status = QLabel("缩放 —")
         self.zoom_status.setObjectName("zoomStatus")
+        self.selection_status = QLabel("未选择")
+        self.selection_status.setObjectName("selectionStatus")
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setObjectName("zoomSlider")
         self.zoom_slider.setRange(int(MapCanvas.MIN_ZOOM_PERCENT), int(MapCanvas.MAX_ZOOM_PERCENT))
@@ -559,6 +612,7 @@ class MainWindow(QMainWindow):
         self.zoom_slider.valueChanged.connect(self.canvas.set_zoom_percent)
         self.statusBar().addPermanentWidget(self.coordinate_status)
         self.statusBar().addPermanentWidget(self.zoom_status)
+        self.statusBar().addPermanentWidget(self.selection_status)
         self.statusBar().addPermanentWidget(self.zoom_slider)
 
     def _show_welcome(self) -> None:
@@ -573,9 +627,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(page)
         self.navigation_toolbar.hide()
         self.canvas.set_pan_mode(False)
+        self.canvas.clear_regions()
         self.pan_action.setChecked(False)
         self.coordinate_status.setText("X —  Y —")
         self.zoom_status.setText("缩放 —")
+        self.selection_status.setText("未选择")
         self.statusBar().showMessage("就绪")
         self._update_actions()
 
