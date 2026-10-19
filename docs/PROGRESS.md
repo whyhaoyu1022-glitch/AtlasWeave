@@ -325,12 +325,13 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | ruff check | 通过 |
 | 完整 pytest 回归 | 140 项通过 |
 | M2 画布选择专项 | 2 项新增测试通过，覆盖真实拓扑命中、面积、信号和隐藏过滤 |
-| wheel / sdist 构建 | 待提交前执行 |
-| GitHub Windows / Linux CI | 待提交后核对 |
+| wheel / sdist 构建 | 成功；独立 wheel 验证通过 |
+| GitHub Windows / Linux CI | 运行 39336740511 success |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与下一步
 
 - 本批不包含多边形绘制、编辑命令、撤销栈和拖放；这些属于 M3/M4 主线。
 - 锁定区域当前只保证选择和查看，编辑命令接入时必须拒绝修改。
-- 提交后核对双平台 CI，并把最终运行编号补入本节；准备本周 M2 阶段验收材料。
+- 双平台 CI 已核对；准备本周 M2 阶段验收材料。
+- GitHub Actions 运行 [39336740511](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39336740511) 于 2026-10-19 完成；Windows / Linux 均通过。
