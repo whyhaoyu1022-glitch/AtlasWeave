@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QWidget
+from shapely.geometry import box
+from shapely.ops import unary_union
 
 
 class MapCanvas(QWidget):
@@ -40,6 +42,7 @@ class MapCanvas(QWidget):
         self._dragging = False
         self._drag_last = QPointF()
         self._regions: dict[str, dict] = {}
+        self._geometry_errors: dict[str, str] = {}
         self._selected_ids: set[str] = set()
         self._selection_origin: QPointF | None = None
         self._selection_rect: QRectF | None = None
@@ -94,15 +97,21 @@ class MapCanvas(QWidget):
             if region_id in self._regions
         )
 
+    @property
+    def geometry_errors(self) -> Mapping[str, str]:
+        return dict(self._geometry_errors)
+
     def set_regions(self, regions: Mapping, topology) -> None:
         """Load real region faces for rendering and hit testing."""
         records: dict[str, dict] = {}
+        errors: dict[str, str] = {}
         for region_id, region in regions.items():
             if not region.visible:
                 records[region_id] = {"region": region, "paths": (), "area": 0.0}
                 continue
             paths = []
             area = 0.0
+            geometries = []
             try:
                 for face_id in region.face_ids:
                     polygon = topology.face_polygon(face_id)
@@ -115,17 +124,26 @@ class MapCanvas(QWidget):
                         path.addPolygon(QPolygonF([QPointF(p.x, p.y) for p in hole]))
                     paths.append(path)
                     area += float(polygon.area)
-            except (KeyError, ValueError, TypeError):
+                    geometries.append(polygon)
+            except (KeyError, ValueError, TypeError) as exc:
                 paths = []
                 area = 0.0
-            records[region_id] = {"region": region, "paths": tuple(paths), "area": area}
+                errors[region_id] = str(exc)
+            records[region_id] = {
+                "region": region,
+                "paths": tuple(paths),
+                "area": area,
+                "geometry": unary_union(geometries) if geometries else None,
+            }
         self._regions = records
+        self._geometry_errors = errors
         self._selected_ids.intersection_update(records)
         self.selection_changed.emit(tuple(sorted(self._selected_ids)))
         self.update()
 
     def clear_regions(self) -> None:
         self._regions = {}
+        self._geometry_errors = {}
         self.clear_selection()
 
     def set_selection(self, region_ids, *, additive: bool = False) -> None:
@@ -256,7 +274,7 @@ class MapCanvas(QWidget):
         should_pan = (
             event.button() == Qt.MouseButton.MiddleButton
             or self._pan_mode
-            or bool(event.modifiers() & Qt.KeyboardModifier.Shift)
+            or bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
         )
         if should_pan and event.button() in (
             Qt.MouseButton.LeftButton,
@@ -384,15 +402,25 @@ class MapCanvas(QWidget):
 
     def _regions_in_rect(self, rect: QRectF, contained: bool) -> list[str]:
         result = []
-        area_path = QPainterPath()
-        area_path.addRect(rect)
+        world_rect = [
+            self.screen_to_world(rect.topLeft()),
+            self.screen_to_world(rect.bottomRight()),
+        ]
+        selection = box(
+            min(point.x() for point in world_rect),
+            min(point.y() for point in world_rect),
+            max(point.x() for point in world_rect),
+            max(point.y() for point in world_rect),
+        )
         for region_id, record in self._regions.items():
             if not record["region"].visible:
                 continue
-            paths = [self._screen_path(path) for path in record["paths"]]
+            geometry = record["geometry"]
+            if geometry is None:
+                continue
             if contained:
-                if paths and all(rect.contains(path.boundingRect()) for path in paths):
+                if geometry.within(selection):
                     result.append(region_id)
-            elif any(area_path.intersects(path) for path in paths):
+            elif geometry.intersects(selection):
                 result.append(region_id)
         return result

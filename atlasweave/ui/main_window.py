@@ -446,6 +446,15 @@ class MainWindow(QMainWindow):
             self.canvas.clear_regions()
             return
         self.canvas.set_regions(self.project.regions, self.project.topology)
+        if self.canvas.geometry_errors:
+            details = "\n".join(
+                f"{self.project.regions[region_id].name}: {message}"
+                for region_id, message in self.canvas.geometry_errors.items()
+                if region_id in self.project.regions
+            )
+            self.issue_panel.setPlainText(f"区域几何无法显示：\n{details}")
+        else:
+            self.issue_panel.setPlainText("当前没有校验问题。")
         root = QTreeWidgetItem([self.project.name, "工程"])
         root.setData(0, Qt.ItemDataRole.UserRole, self.project.id)
         self.project_tree.addTopLevelItem(root)

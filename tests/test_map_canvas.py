@@ -113,3 +113,20 @@ def test_hidden_regions_are_not_hit_but_can_be_selected_from_tree(qtbot):
     assert canvas._hit_test(canvas.world_to_screen(QPointF(25, 25))) is None
     canvas.set_selection([region.id])
     assert canvas.selected_region_ids == {region.id}
+
+
+def test_mouse_click_and_containment_box_use_real_world_geometry(qtbot):
+    canvas = MapCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(800, 600)
+    canvas.set_world(100, 100)
+    region, topology = _square_region()
+    canvas.set_regions({region.id: region}, topology)
+
+    center = canvas.world_to_screen(QPointF(25, 25))
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=center.toPoint())
+    assert canvas.selected_region_ids == {region.id}
+    selection = canvas.world_rect_on_screen()
+    assert region.id in canvas._regions_in_rect(selection, contained=True)
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(20, 20))
+    assert not canvas.selected_region_ids
