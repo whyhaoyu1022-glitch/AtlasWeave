@@ -374,11 +374,16 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | Ruff 检查和格式 | 通过 |
 | 完整 pytest 回归 | 145 项通过 |
 | M3 绘制/命令专项 | 草稿交互、合法命令、重叠/越界拒绝、保存回读通过 |
-| wheel / sdist 构建 | 待最终提交前执行 |
-| GitHub Windows / Linux CI | 待最终提交后核对 |
+| wheel / sdist 构建 | 成功；独立 wheel 验证和启动冒烟通过 |
+| GitHub Windows / Linux CI | 待文档收尾提交后再次核对 |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与下一步
 
 - 自由手绘、撤销/重做、子区域切分、共享边编辑和拖放仍在 M3/M4 后续批次。
 - 当前绘制工具创建顶级区域；锁定区域只允许选择和查看，编辑命令接入时继续拒绝修改。
+
+### 功能提交与 CI
+
+- 功能提交：[85fc84f](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/85fc84f87a41c01049fb483581406d5ed889f3ac)。
+- [GitHub Actions 运行 39513192829](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513192829) 已完成；Windows / Linux 均 success。
