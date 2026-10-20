@@ -375,7 +375,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | 完整 pytest 回归 | 145 项通过 |
 | M3 绘制/命令专项 | 草稿交互、合法命令、重叠/越界拒绝、保存回读通过 |
 | wheel / sdist 构建 | 成功；独立 wheel 验证和启动冒烟通过 |
-| GitHub Windows / Linux CI | 待文档收尾提交后再次核对 |
+| GitHub Windows / Linux CI | 功能运行 39513192829、文档运行 39513505536 均 success |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与下一步
@@ -387,3 +387,4 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 - 功能提交：[85fc84f](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/85fc84f87a41c01049fb483581406d5ed889f3ac)。
 - [GitHub Actions 运行 39513192829](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513192829) 已完成；Windows / Linux 均 success。
+- 文档收尾提交：[aabd21b](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/aabd21b3392a0c70fb647dac755a792bdc46fd5a)；[GitHub Actions 运行 39513505536](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513505536) 已完成；Windows / Linux 均 success。
