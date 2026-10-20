@@ -1,4 +1,5 @@
 from PyQt6.QtWidgets import QListWidget, QMessageBox
+from shapely.geometry import Polygon
 
 from atlasweave import APP_NAME
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
@@ -99,7 +100,28 @@ def test_project_workspace_exposes_real_docks_and_tree(qtbot, tmp_path):
     assert window.project_dock.isVisible()
     assert window.project_tree.topLevelItem(0).text(0) == "导航测试"
     assert window.project_tree.topLevelItem(0).childCount() == 1
+    assert window.draw_action.isEnabled()
     window.project_dock.hide()
     window.reset_workspace_layout()
     assert window.project_dock.isVisible()
     assert not window.bottom_dock.isVisible()
+
+
+def test_commit_drawn_polygon_creates_real_topology_and_dirty_state(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.show()
+    window.project = Project(name="绘制测试")
+    window._show_project_workspace()
+
+    polygon = Polygon(((10, 10), (40, 10), (25, 40)))
+    window._commit_region(polygon, "三角区域", "国家")
+
+    assert window.dirty
+    assert len(window.project.regions) == 1
+    region = next(iter(window.project.regions.values()))
+    assert region.name == "三角区域"
+    assert len(window.project.topology.faces) == 1
+    assert window.canvas.selected_region_ids == {region.id}
+    window.dirty = False
+    window.close()

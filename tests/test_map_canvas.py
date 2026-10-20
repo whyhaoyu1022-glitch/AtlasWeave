@@ -130,3 +130,25 @@ def test_mouse_click_and_containment_box_use_real_world_geometry(qtbot):
     assert region.id in canvas._regions_in_rect(selection, contained=True)
     qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(20, 20))
     assert not canvas.selected_region_ids
+
+
+def test_drawing_mode_collects_points_and_supports_cancel(qtbot):
+    canvas = MapCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(800, 600)
+    canvas.set_world(100, 100)
+    completed = []
+    canvas.polygon_completed.connect(completed.append)
+    canvas.set_draw_mode(True)
+    points = [QPointF(10, 10), QPointF(40, 10), QPointF(25, 40)]
+    for point in points:
+        canvas.add_draft_point(canvas.world_to_screen(point))
+
+    assert len(canvas.draft_points) == 3
+    assert canvas.finish_drawing()
+    assert len(completed) == 1
+    assert len(completed[0]) == 3
+    canvas.remove_last_draft_point()
+    assert len(canvas.draft_points) == 2
+    canvas.cancel_drawing()
+    assert not canvas.draft_points

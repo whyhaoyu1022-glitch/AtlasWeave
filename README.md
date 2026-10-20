@@ -2,7 +2,7 @@
 
 基于 Python 3.12+ / PyQt6 的虚构行政地图桌面编辑器。
 
-**当前阶段：M2 欢迎页、四步新建向导、真实工程画布导航、停靠工作区和区域选择已接入；地图绘制和编辑仍未开始，不是 V1 成品。**
+**当前阶段：M2 工作区和区域选择已接入，M3 已支持首批真实多边形绘制与顶级区域创建；共享边编辑、撤销和导出仍未完成，不是 V1 成品。**
 仓库名保留 `Atlasveave`，产品与 Python 包名使用规范中的 `AtlasWeave` / `atlasweave`。
 
 ## 安装与启动
@@ -50,6 +50,7 @@ uv build --no-build-isolation
 - [M1 第二批验收](docs/acceptance/M1-02.md)；[工程文件格式与 IO](docs/PROJECT_IO.md)。
 - [M2 第一批验收](docs/acceptance/M2-01.md)；[M2 第二批验收](docs/acceptance/M2-02.md)；[M2 第三批验收](docs/acceptance/M2-03.md)；[M2 第四批验收](docs/acceptance/M2-04.md)。
 - [M2 第五批验收](docs/acceptance/M2-05.md)：真实区域选择、框选和树画布同步。
+- [M3 第一批验收](docs/acceptance/M3-01.md)：多边形绘制与顶级区域创建。
 - [已知问题](docs/KNOWN_ISSUES.md)；[依赖声明](THIRD_PARTY_NOTICES.md)。
 
 每日北京时间 06:30、22:00 提交开发计划，用户批准该轮计划后执行。

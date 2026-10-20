@@ -7,8 +7,10 @@ from collections.abc import Mapping
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QWidget
+from shapely.errors import GEOSException
 from shapely.geometry import box
 from shapely.ops import unary_union
+from shapely.validation import explain_validity
 
 
 class MapCanvas(QWidget):
@@ -22,6 +24,8 @@ class MapCanvas(QWidget):
     coordinate_changed = pyqtSignal(float, float, bool)
     zoom_changed = pyqtSignal(float)
     selection_changed = pyqtSignal(object)
+    draft_changed = pyqtSignal(object)
+    polygon_completed = pyqtSignal(object)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -47,6 +51,9 @@ class MapCanvas(QWidget):
         self._selection_origin: QPointF | None = None
         self._selection_rect: QRectF | None = None
         self._selecting = False
+        self._draw_mode = False
+        self._draft_points: list[QPointF] = []
+        self._draft_cursor: QPointF | None = None
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -86,6 +93,52 @@ class MapCanvas(QWidget):
         self.update()
 
     @property
+    def draw_mode(self) -> bool:
+        return self._draw_mode
+
+    @property
+    def draft_points(self) -> tuple[QPointF, ...]:
+        return tuple(QPointF(point) for point in self._draft_points)
+
+    def set_draw_mode(self, enabled: bool) -> None:
+        self._draw_mode = bool(enabled)
+        self._selection_origin = None
+        self._selection_rect = None
+        self._selecting = False
+        self._dragging = False
+        if not self._draw_mode:
+            self.cancel_drawing()
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if self._draw_mode else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    def cancel_drawing(self) -> None:
+        if self._draft_points or self._draft_cursor is not None:
+            self._draft_points.clear()
+            self._draft_cursor = None
+            self.draft_changed.emit(())
+            self.update()
+
+    def remove_last_draft_point(self) -> None:
+        if self._draft_points:
+            self._draft_points.pop()
+            self.draft_changed.emit(self.draft_points)
+            self.update()
+
+    def add_draft_point(self, point: QPointF) -> None:
+        world = self.screen_to_world(point)
+        self._draft_points.append(world)
+        self.draft_changed.emit(self.draft_points)
+        self.update()
+
+    def finish_drawing(self) -> bool:
+        if len(self._draft_points) < 3:
+            return False
+        self.polygon_completed.emit(self.draft_points)
+        return True
+
+    @property
     def selected_region_ids(self) -> frozenset[str]:
         return frozenset(self._selected_ids)
 
@@ -107,7 +160,12 @@ class MapCanvas(QWidget):
         errors: dict[str, str] = {}
         for region_id, region in regions.items():
             if not region.visible:
-                records[region_id] = {"region": region, "paths": (), "area": 0.0}
+                records[region_id] = {
+                    "region": region,
+                    "paths": (),
+                    "area": 0.0,
+                    "geometry": None,
+                }
                 continue
             paths = []
             area = 0.0
@@ -115,6 +173,8 @@ class MapCanvas(QWidget):
             try:
                 for face_id in region.face_ids:
                     polygon = topology.face_polygon(face_id)
+                    if not polygon.is_valid:
+                        raise ValueError(f"面几何无效：{explain_validity(polygon)}")
                     outer = topology.ring_points(topology.faces[face_id].outer_ring_id)
                     path = QPainterPath()
                     path.setFillRule(Qt.FillRule.OddEvenFill)
@@ -125,7 +185,7 @@ class MapCanvas(QWidget):
                     paths.append(path)
                     area += float(polygon.area)
                     geometries.append(polygon)
-            except (KeyError, ValueError, TypeError) as exc:
+            except (KeyError, ValueError, TypeError, GEOSException) as exc:
                 paths = []
                 area = 0.0
                 errors[region_id] = str(exc)
@@ -133,7 +193,7 @@ class MapCanvas(QWidget):
                 "region": region,
                 "paths": tuple(paths),
                 "area": area,
-                "geometry": unary_union(geometries) if geometries else None,
+                "geometry": self._union_geometries(geometries),
             }
         self._regions = records
         self._geometry_errors = errors
@@ -227,7 +287,24 @@ class MapCanvas(QWidget):
                 screen_path = self._screen_path(path)
                 painter.drawPath(screen_path)
 
-        if not self._regions and self._world_width > 0 and self._world_height > 0:
+        if self._draft_points:
+            draft = QPolygonF([self.world_to_screen(point) for point in self._draft_points])
+            painter.setBrush(QBrush(QColor(23, 105, 224, 35)))
+            painter.setPen(QPen(QColor("#1769E0"), 2.0, Qt.PenStyle.DashLine))
+            painter.drawPolyline(draft)
+            if self._draft_cursor is not None:
+                painter.drawLine(draft[-1], self.world_to_screen(self._draft_cursor))
+            painter.setBrush(QBrush(QColor("#FFFFFF")))
+            painter.setPen(QPen(QColor("#1769E0"), 2.0))
+            for point in draft:
+                painter.drawEllipse(point, 4.0, 4.0)
+
+        if (
+            not self._regions
+            and not self._draft_points
+            and self._world_width > 0
+            and self._world_height > 0
+        ):
             message = "还没有疆界"
             hint = "完成 M3 区域绘制后，可从这里开始创建第一个顶级区域"
             font = QFont(self.font())
@@ -256,6 +333,12 @@ class MapCanvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         point = event.position()
+        if self._draw_mode:
+            self._draft_cursor = self.screen_to_world(point)
+            self._emit_coordinate(point)
+            self.update()
+            event.accept()
+            return
         if self._selection_origin is not None and not self._dragging:
             if (point - self._selection_origin).manhattanLength() >= 4:
                 self._selecting = True
@@ -271,6 +354,27 @@ class MapCanvas(QWidget):
         super().mouseMoveEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._draw_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                if (
+                    len(self._draft_points) >= 3
+                    and self._draft_points
+                    and (
+                        self.world_to_screen(self._draft_points[0]) - event.position()
+                    ).manhattanLength()
+                    <= 12
+                ):
+                    self.finish_drawing()
+                else:
+                    self.add_draft_point(event.position())
+                event.accept()
+                return
+            if event.button() == Qt.MouseButton.RightButton:
+                self.remove_last_draft_point()
+                event.accept()
+                return
+            super().mousePressEvent(event)
+            return
         should_pan = (
             event.button() == Qt.MouseButton.MiddleButton
             or self._pan_mode
@@ -334,6 +438,15 @@ class MapCanvas(QWidget):
         event.accept()
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._draw_mode:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancel_drawing()
+                event.accept()
+                return
+            if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                self.remove_last_draft_point()
+                event.accept()
+                return
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
             self.set_pan_mode(True)
             event.accept()
@@ -359,6 +472,15 @@ class MapCanvas(QWidget):
         available_height = max(1.0, self.height() - self.VIEW_MARGIN * 2)
         fit = min(available_width / self._world_width, available_height / self._world_height)
         return fit * (self._zoom_percent / 100.0)
+
+    @staticmethod
+    def _union_geometries(geometries):
+        if not geometries:
+            return None
+        try:
+            return unary_union(geometries)
+        except (GEOSException, ValueError):
+            return None
 
     def _pan_for_anchor(self, world: QPointF, anchor: QPointF) -> QPointF:
         scale = self._scale()

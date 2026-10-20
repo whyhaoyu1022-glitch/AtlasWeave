@@ -38,9 +38,14 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shapely.errors import GEOSException
+from shapely.geometry import Polygon
+from shapely.geometry.polygon import orient
+from shapely.validation import explain_validity
 
 from atlasweave import APP_NAME, __version__
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
+from atlasweave.commands.region_commands import RegionCommandError, create_top_level_region
 from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import (
@@ -291,6 +296,44 @@ class NewProjectDialog(QDialog):
         return [self.level_list.item(i).text().strip() for i in range(self.level_list.count())]
 
 
+class RegionCreateDialog(QDialog):
+    """Collect the minimum metadata before committing a drawn region."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("创建顶级区域")
+        self.name_edit = QLineEdit()
+        self.name_edit.setObjectName("regionNameEdit")
+        self.type_edit = QLineEdit("区域")
+        self.type_edit.setObjectName("regionTypeEdit")
+        form = QFormLayout(self)
+        form.addRow("区域名称", self.name_edit)
+        form.addRow("区域类型", self.type_edit)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _accept(self) -> None:
+        if not self.name_edit.text().strip():
+            QMessageBox.warning(self, "名称不能为空", "请输入区域名称。")
+            return
+        if not self.type_edit.text().strip():
+            QMessageBox.warning(self, "类型不能为空", "请输入区域类型。")
+            return
+        self.accept()
+
+    @property
+    def region_name(self) -> str:
+        return self.name_edit.text().strip()
+
+    @property
+    def type_name(self) -> str:
+        return self.type_edit.text().strip()
+
+
 class WelcomePage(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -342,6 +385,7 @@ class MainWindow(QMainWindow):
         self.canvas.coordinate_changed.connect(self._update_coordinate_status)
         self.canvas.zoom_changed.connect(self._update_zoom_status)
         self.canvas.selection_changed.connect(self._canvas_selection_changed)
+        self.canvas.polygon_completed.connect(self._polygon_completed)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -491,6 +535,16 @@ class MainWindow(QMainWindow):
             self.canvas.clear_selection()
             return
         value = current.data(0, Qt.ItemDataRole.UserRole)
+        tree_region_ids = [
+            item.data(0, Qt.ItemDataRole.UserRole)
+            for item in self.project_tree.selectedItems()
+            if item.data(0, Qt.ItemDataRole.UserRole) in self.project.regions
+        ]
+        if len(tree_region_ids) > 1:
+            self.canvas.set_selection(tree_region_ids)
+            self.property_label.setText(f"已选择 {len(tree_region_ids)} 个区域")
+            self.statusBar().showMessage(f"已选择 {len(tree_region_ids)} 个区域", 3000)
+            return
         for region in self.project.regions.values():
             if region.id == value:
                 self.canvas.set_selection([region.id])
@@ -593,11 +647,17 @@ class MainWindow(QMainWindow):
         self.pan_action.setCheckable(True)
         self.pan_action.toggled.connect(self.canvas.set_pan_mode)
         view_menu.addAction(self.pan_action)
+        self.draw_action = QAction("绘制区域", self)
+        self.draw_action.setCheckable(True)
+        self.draw_action.setShortcut(QKeySequence("D"))
+        self.draw_action.toggled.connect(self._set_draw_mode)
+        view_menu.addAction(self.draw_action)
         self._create_panel_actions(view_menu)
 
         self.navigation_toolbar = QToolBar("地图导航", self)
         self.navigation_toolbar.setObjectName("navigationToolbar")
         self.navigation_toolbar.addAction(self.pan_action)
+        self.navigation_toolbar.addAction(self.draw_action)
         self.navigation_toolbar.addSeparator()
         self.navigation_toolbar.addAction(self.zoom_out_action)
         self.navigation_toolbar.addAction(self.zoom_in_action)
@@ -636,6 +696,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(page)
         self.navigation_toolbar.hide()
         self.canvas.set_pan_mode(False)
+        self.draw_action.setChecked(False)
         self.canvas.clear_regions()
         self.pan_action.setChecked(False)
         self.coordinate_status.setText("X —  Y —")
@@ -662,6 +723,81 @@ class MainWindow(QMainWindow):
         for action in (self.zoom_in_action, self.zoom_out_action, self.fit_world_action):
             action.setEnabled(has_project)
         self.pan_action.setEnabled(has_project)
+        self.draw_action.setEnabled(writable)
+
+    def _set_draw_mode(self, enabled: bool) -> None:
+        if enabled and (self.project is None or self.read_only):
+            self.draw_action.setChecked(False)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.statusBar().showMessage(
+                "绘制区域：单击添加顶点，点击首点闭合；右键/Backspace 删除最后一点，Esc 取消"
+            )
+        else:
+            self.canvas.cancel_drawing()
+        self.canvas.set_draw_mode(enabled)
+
+    def _polygon_completed(self, points) -> None:
+        if self.project is None or self.read_only:
+            return
+        polygon, error = self._validate_draft_polygon(points)
+        if error:
+            self.issue_panel.setPlainText(f"绘制区域无法创建：\n{error}")
+            self.statusBar().showMessage(error, 5000)
+            return
+        dialog = RegionCreateDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._commit_region(polygon, dialog.region_name, dialog.type_name)
+
+    def _validate_draft_polygon(self, points):
+        if len(points) < 3:
+            return None, "区域至少需要三个顶点。"
+        coords = [(point.x(), point.y()) for point in points]
+        polygon = Polygon(coords)
+        if not polygon.is_valid:
+            return None, f"区域几何无效：{explain_validity(polygon)}"
+        tolerance = self.project.tolerances
+        if polygon.area <= tolerance.minimum_face_area:
+            return None, "区域面积为零或小于工程容差。"
+        min_x, min_y, max_x, max_y = polygon.bounds
+        if (
+            min_x < 0
+            or min_y < 0
+            or max_x > self.project.world_width_km
+            or max_y > self.project.world_height_km
+        ):
+            return None, "区域不能超出世界边界。"
+        for region in self.project.regions.values():
+            if not region.visible:
+                continue
+            for face_id in region.face_ids:
+                try:
+                    existing = self.project.topology.face_polygon(face_id)
+                except (KeyError, ValueError, GEOSException):
+                    continue
+                if existing.intersection(polygon).area > tolerance.minimum_face_area:
+                    return None, f"区域与已有区域“{region.name}”重叠。"
+        return orient(polygon, sign=1.0), None
+
+    def _commit_region(self, polygon, name: str, type_name: str) -> None:
+        if self.project is None:
+            return
+        try:
+            self.project, region = create_top_level_region(self.project, polygon, name, type_name)
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"区域创建失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        self.dirty = True
+        self.canvas.cancel_drawing()
+        self.draw_action.setChecked(False)
+        self._refresh_project_tree()
+        self.canvas.set_selection([region.id])
+        self.operation_log.appendPlainText(f"创建顶级区域：{name}（{type_name}）")
+        self.statusBar().showMessage(f"已创建区域：{name}", 5000)
+        self._update_actions()
 
     def new_project(self) -> None:
         if not self._confirm_discard():
@@ -846,6 +982,8 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.show()
         if not self._has_restored_dock_state:
             self._set_workspace_docks_visible(True)
+        self.canvas.set_draw_mode(False)
+        self.draw_action.setChecked(False)
         self._refresh_project_tree()
         if self.read_only:
             self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")
