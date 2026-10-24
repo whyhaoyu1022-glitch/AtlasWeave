@@ -28,6 +28,8 @@ class MapCanvas(QWidget):
     polygon_completed = pyqtSignal(object)
     freehand_changed = pyqtSignal(object)
     freehand_completed = pyqtSignal(object)
+    split_changed = pyqtSignal(object)
+    split_completed = pyqtSignal(object)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -61,6 +63,11 @@ class MapCanvas(QWidget):
         self._freehand_cursor: QPointF | None = None
         self._freehand_dragging = False
         self._freehand_last_screen: QPointF | None = None
+        self._split_mode = False
+        self._split_points: list[QPointF] = []
+        self._split_cursor: QPointF | None = None
+        self._split_dragging = False
+        self._split_last_screen: QPointF | None = None
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -111,6 +118,7 @@ class MapCanvas(QWidget):
         self._draw_mode = bool(enabled)
         if self._draw_mode:
             self.set_freehand_mode(False)
+            self.set_split_mode(False)
         self._selection_origin = None
         self._selection_rect = None
         self._selecting = False
@@ -134,6 +142,7 @@ class MapCanvas(QWidget):
         self._freehand_mode = bool(enabled)
         if self._freehand_mode:
             self._draw_mode = False
+            self.set_split_mode(False)
             self.cancel_drawing()
         else:
             self.cancel_freehand()
@@ -145,6 +154,61 @@ class MapCanvas(QWidget):
         self.setCursor(
             Qt.CursorShape.CrossCursor if self._freehand_mode else Qt.CursorShape.ArrowCursor
         )
+        self.update()
+
+    @property
+    def split_mode(self) -> bool:
+        return self._split_mode
+
+    @property
+    def split_points(self) -> tuple[QPointF, ...]:
+        return tuple(QPointF(point) for point in self._split_points)
+
+    def set_split_mode(self, enabled: bool) -> None:
+        self._split_mode = bool(enabled)
+        if self._split_mode:
+            self._draw_mode = False
+            self.set_freehand_mode(False)
+            self.cancel_drawing()
+            self.cancel_freehand()
+        else:
+            self.cancel_split()
+        self._selection_origin = None
+        self._selection_rect = None
+        self._selecting = False
+        self._dragging = False
+        self._split_dragging = False
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if self._split_mode else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    def cancel_split(self) -> None:
+        if self._split_points or self._split_cursor is not None:
+            self._split_points.clear()
+            self._split_cursor = None
+            self._split_dragging = False
+            self._split_last_screen = None
+            self.split_changed.emit(())
+            self.update()
+
+    def finish_split(self) -> bool:
+        if len(self._split_points) < 2:
+            return False
+        self._split_dragging = False
+        self.split_completed.emit(self.split_points)
+        return True
+
+    def _add_split_screen_point(self, point: QPointF) -> None:
+        if self._split_last_screen is not None:
+            if (point - self._split_last_screen).manhattanLength() < 3:
+                return
+        self._split_last_screen = QPointF(point)
+        world = self.screen_to_world(point)
+        if self._split_points and (world - self._split_points[-1]).manhattanLength() < 1e-9:
+            return
+        self._split_points.append(world)
+        self.split_changed.emit(self.split_points)
         self.update()
 
     def cancel_freehand(self) -> None:
@@ -378,6 +442,14 @@ class MapCanvas(QWidget):
                     continue
                 painter.drawEllipse(point, 3.0, 3.0)
 
+        if self._split_points:
+            split_line = QPolygonF([self.world_to_screen(point) for point in self._split_points])
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor("#DC2626"), 2.0, Qt.PenStyle.DashLine))
+            painter.drawPolyline(split_line)
+            if self._split_cursor is not None:
+                painter.drawLine(split_line[-1], self.world_to_screen(self._split_cursor))
+
         if (
             not self._regions
             and not self._draft_points
@@ -413,6 +485,14 @@ class MapCanvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         point = event.position()
+        if self._split_mode:
+            self._split_cursor = self.screen_to_world(point)
+            if self._split_dragging and event.buttons() & Qt.MouseButton.LeftButton:
+                self._add_split_screen_point(point)
+            self._emit_coordinate(point)
+            self.update()
+            event.accept()
+            return
         if self._freehand_mode:
             self._freehand_cursor = self.screen_to_world(point)
             if self._freehand_dragging and event.buttons() & Qt.MouseButton.LeftButton:
@@ -453,6 +533,21 @@ class MapCanvas(QWidget):
                 return
             if event.button() == Qt.MouseButton.RightButton:
                 self.cancel_freehand()
+                event.accept()
+                return
+            super().mousePressEvent(event)
+            return
+        if self._split_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._split_dragging = True
+                self._split_points.clear()
+                self._split_last_screen = None
+                self._add_split_screen_point(event.position())
+                self.setFocus()
+                event.accept()
+                return
+            if event.button() == Qt.MouseButton.RightButton:
+                self.cancel_split()
                 event.accept()
                 return
             super().mousePressEvent(event)
@@ -509,6 +604,12 @@ class MapCanvas(QWidget):
                 self.finish_freehand()
             event.accept()
             return
+        if self._split_mode and event.button() == Qt.MouseButton.LeftButton:
+            if self._split_dragging:
+                self._add_split_screen_point(event.position())
+                self.finish_split()
+            event.accept()
+            return
         if self._dragging:
             self._dragging = False
             self.setCursor(
@@ -555,6 +656,15 @@ class MapCanvas(QWidget):
         if self._freehand_mode:
             if event.key() == Qt.Key.Key_Escape:
                 self.cancel_freehand()
+                event.accept()
+                return
+        if self._split_mode:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancel_split()
+                event.accept()
+                return
+            if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                self.cancel_split()
                 event.accept()
                 return
             if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):

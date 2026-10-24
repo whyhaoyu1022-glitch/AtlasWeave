@@ -50,6 +50,7 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
     polygon_from_freehand,
+    split_region_into_children,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
@@ -339,6 +340,52 @@ class RegionCreateDialog(QDialog):
         return self.type_edit.text().strip()
 
 
+class RegionSplitDialog(QDialog):
+    """Collect names for the two child regions produced by a cut preview."""
+
+    def __init__(self, parent_name: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"切分区域：{parent_name}")
+        self.first_name_edit = QLineEdit()
+        self.second_name_edit = QLineEdit()
+        self.type_edit = QLineEdit("省")
+        form = QFormLayout(self)
+        form.addRow("第一个子区域", self.first_name_edit)
+        form.addRow("第二个子区域", self.second_name_edit)
+        form.addRow("区域类型", self.type_edit)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _accept(self) -> None:
+        names = (self.first_name, self.second_name)
+        if any(not name for name in names):
+            QMessageBox.warning(self, "名称不能为空", "请输入两个子区域名称。")
+            return
+        if names[0] == names[1]:
+            QMessageBox.warning(self, "名称重复", "两个子区域名称不能重复。")
+            return
+        if not self.type_name:
+            QMessageBox.warning(self, "类型不能为空", "请输入子区域类型。")
+            return
+        self.accept()
+
+    @property
+    def first_name(self) -> str:
+        return self.first_name_edit.text().strip()
+
+    @property
+    def second_name(self) -> str:
+        return self.second_name_edit.text().strip()
+
+    @property
+    def type_name(self) -> str:
+        return self.type_edit.text().strip()
+
+
 class WelcomePage(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -394,6 +441,7 @@ class MainWindow(QMainWindow):
         self.canvas.selection_changed.connect(self._canvas_selection_changed)
         self.canvas.polygon_completed.connect(self._polygon_completed)
         self.canvas.freehand_completed.connect(self._freehand_completed)
+        self.canvas.split_completed.connect(self._split_completed)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -513,6 +561,7 @@ class MainWindow(QMainWindow):
         regions_by_level = {level.id: [] for level in self.project.hierarchy_levels}
         for region in self.project.regions.values():
             regions_by_level.setdefault(region.level_id, []).append(region)
+        region_items: dict[str, QTreeWidgetItem] = {}
         for level in self.project.hierarchy_levels:
             level_item = QTreeWidgetItem([level.name, level.default_type_name])
             level_item.setData(0, Qt.ItemDataRole.UserRole, level.id)
@@ -520,7 +569,11 @@ class MainWindow(QMainWindow):
             for region in regions_by_level.get(level.id, []):
                 child = QTreeWidgetItem([region.name, region.type_name])
                 child.setData(0, Qt.ItemDataRole.UserRole, region.id)
-                level_item.addChild(child)
+                if region.parent_id in region_items:
+                    region_items[region.parent_id].addChild(child)
+                else:
+                    level_item.addChild(child)
+                region_items[region.id] = child
                 row = self.region_table.rowCount()
                 self.region_table.insertRow(row)
                 self.region_table.setItem(row, 0, QTableWidgetItem(region.name))
@@ -672,6 +725,11 @@ class MainWindow(QMainWindow):
         self.freehand_action.setShortcut(QKeySequence("F"))
         self.freehand_action.toggled.connect(self._set_freehand_mode)
         view_menu.addAction(self.freehand_action)
+        self.split_action = QAction("切分区域", self)
+        self.split_action.setCheckable(True)
+        self.split_action.setShortcut(QKeySequence("S"))
+        self.split_action.toggled.connect(self._set_split_mode)
+        view_menu.addAction(self.split_action)
         self._create_panel_actions(view_menu)
 
         self.navigation_toolbar = QToolBar("地图导航", self)
@@ -679,6 +737,7 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.addAction(self.pan_action)
         self.navigation_toolbar.addAction(self.draw_action)
         self.navigation_toolbar.addAction(self.freehand_action)
+        self.navigation_toolbar.addAction(self.split_action)
         self.navigation_toolbar.addSeparator()
         self.navigation_toolbar.addAction(self.undo_action)
         self.navigation_toolbar.addAction(self.redo_action)
@@ -722,6 +781,7 @@ class MainWindow(QMainWindow):
         self.canvas.set_pan_mode(False)
         self.draw_action.setChecked(False)
         self.freehand_action.setChecked(False)
+        self.split_action.setChecked(False)
         self.canvas.clear_regions()
         self.pan_action.setChecked(False)
         self.coordinate_status.setText("X —  Y —")
@@ -768,6 +828,7 @@ class MainWindow(QMainWindow):
         self.pan_action.setEnabled(has_project)
         self.draw_action.setEnabled(writable)
         self.freehand_action.setEnabled(writable)
+        self.split_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
 
     def _set_draw_mode(self, enabled: bool) -> None:
         if enabled and (self.project is None or self.read_only):
@@ -776,6 +837,7 @@ class MainWindow(QMainWindow):
         if enabled:
             self.pan_action.setChecked(False)
             self.freehand_action.setChecked(False)
+            self.split_action.setChecked(False)
             self.statusBar().showMessage(
                 "绘制区域：单击添加顶点，点击首点闭合；右键/Backspace 删除最后一点，Esc 取消"
             )
@@ -790,10 +852,72 @@ class MainWindow(QMainWindow):
         if enabled:
             self.pan_action.setChecked(False)
             self.draw_action.setChecked(False)
+            self.split_action.setChecked(False)
             self.statusBar().showMessage("自由手绘：按住鼠标左键拖动勾勒区域，松开完成；Esc 取消")
         else:
             self.canvas.cancel_freehand()
         self.canvas.set_freehand_mode(enabled)
+
+    def _set_split_mode(self, enabled: bool) -> None:
+        if enabled and (
+            self.project is None or self.read_only or len(self.canvas.selected_region_ids) != 1
+        ):
+            self.split_action.setChecked(False)
+            self.statusBar().showMessage("请先选择一个可写的单面父区域。", 4000)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.draw_action.setChecked(False)
+            self.freehand_action.setChecked(False)
+            self.statusBar().showMessage("切分区域：按住左键拖过父区域，松开预览切分；Esc 取消")
+        else:
+            self.canvas.cancel_split()
+        self.canvas.set_split_mode(enabled)
+
+    def _split_completed(self, points) -> None:
+        if self.project is None or self.read_only:
+            return
+        selected = tuple(self.canvas.selected_region_ids)
+        if len(selected) != 1:
+            self.issue_panel.setPlainText("切分区域失败：请先选择一个父区域。")
+            return
+        parent = self.project.regions[selected[0]]
+        dialog = RegionSplitDialog(parent.name, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._commit_split(
+            selected[0],
+            points,
+            (dialog.first_name, dialog.second_name),
+            dialog.type_name,
+        )
+
+    def _commit_split(self, region_id, points, names, type_name: str) -> None:
+        if self.project is None:
+            return
+        before_project = self.project
+        before_selection = self.canvas.selected_region_ids
+        try:
+            after_project, children = split_region_into_children(
+                self.project, region_id, points, names, type_name
+            )
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"切分区域失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        self.undo_stack.push(
+            ProjectSnapshotCommand(
+                self,
+                before_project,
+                after_project,
+                before_selection,
+                tuple(child.id for child in children),
+                f"切分区域：{before_project.regions[region_id].name}",
+            )
+        )
+        self.canvas.cancel_split()
+        self.split_action.setChecked(False)
+        self.statusBar().showMessage("已切分区域（可撤销）", 5000)
 
     def _polygon_completed(self, points) -> None:
         if self.project is None or self.read_only:
@@ -886,8 +1010,10 @@ class MainWindow(QMainWindow):
         )
         self.canvas.cancel_drawing()
         self.canvas.cancel_freehand()
+        self.canvas.cancel_split()
         self.draw_action.setChecked(False)
         self.freehand_action.setChecked(False)
+        self.split_action.setChecked(False)
         self.statusBar().showMessage(f"已创建区域：{name}（可撤销）", 5000)
 
     def new_project(self) -> None:
@@ -1076,8 +1202,10 @@ class MainWindow(QMainWindow):
             self._set_workspace_docks_visible(True)
         self.canvas.set_draw_mode(False)
         self.canvas.set_freehand_mode(False)
+        self.canvas.set_split_mode(False)
         self.draw_action.setChecked(False)
         self.freehand_action.setChecked(False)
+        self.split_action.setChecked(False)
         self._refresh_project_tree()
         if self.read_only:
             self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")

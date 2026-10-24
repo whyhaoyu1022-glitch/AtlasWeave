@@ -1,3 +1,4 @@
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QListWidget, QMessageBox
 from shapely.geometry import Polygon
 
@@ -164,5 +165,54 @@ def test_region_creation_is_undoable_and_redoable(qtbot, tmp_path):
     assert set(window.project.regions) == {region_id}
     assert window.dirty
     assert window.canvas.selected_region_ids == {region_id}
+    window.dirty = False
+    window.close()
+
+
+def test_split_action_creates_nested_children_and_is_undoable(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.project = Project(
+        name="切分窗口测试",
+        hierarchy_levels=(
+            window.project.hierarchy_levels[0]
+            if window.project is not None
+            else Project().hierarchy_levels[0],
+        ),
+    )
+    # Build a second level without relying on the modal wizard.
+    from dataclasses import replace
+
+    from atlasweave.domain.hierarchy import HierarchyLevel
+
+    window.project = replace(
+        window.project,
+        hierarchy_levels=(
+            window.project.hierarchy_levels[0],
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    window._show_project_workspace()
+    window._commit_region(Polygon(((10, 10), (90, 10), (90, 90), (10, 90))), "国家", "国家")
+    parent_id = next(iter(window.project.regions))
+    window.canvas.set_selection([parent_id])
+
+    window._commit_split(
+        parent_id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+
+    children = [
+        region for region in window.project.regions.values() if region.parent_id == parent_id
+    ]
+    assert len(children) == 2
+    assert not window.project.regions[parent_id].visible
+    assert window.project_tree.topLevelItem(0).child(0).child(0).childCount() == 2
+    window.undo_action.trigger()
+    assert not [
+        region for region in window.project.regions.values() if region.parent_id == parent_id
+    ]
     window.dirty = False
     window.close()
