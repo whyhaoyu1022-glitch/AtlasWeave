@@ -445,12 +445,17 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | `ruff format --check .` | 通过 |
 | 完整 `pytest -q` | 149 项通过 |
 | 撤销/重做专项 | 创建、撤销、重做、选择恢复和 clean 状态通过 |
-| wheel / sdist 构建 | 待本批收尾执行 |
-| GitHub Windows / Linux CI | 待本批提交后核对 |
+| wheel / sdist 构建 | 成功；独立 wheel 验证和离屏启动通过 |
+| GitHub Windows / Linux CI | 运行 40060113928 success |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与下一步
 
 - 撤销栈目前覆盖区域创建；子区域切分、共享边编辑、属性编辑和复杂几何命令将在后续批次接入。
 - 需要 Windows 10/11 实机验证快捷键、菜单状态、标题星号和高 DPI 布局。
+
+### 本批提交与 CI 证据
+
+- 功能提交：[`7751525`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/775152536d8501b52e0013c7e05489149b4f4e63)。
+- [GitHub Actions 运行 40060113928](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40060113928)：Windows / Linux 均 success。
 
