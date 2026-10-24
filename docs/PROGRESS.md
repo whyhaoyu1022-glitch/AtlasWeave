@@ -459,3 +459,39 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 功能提交：[`7751525`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/775152536d8501b52e0013c7e05489149b4f4e63)。
 - [GitHub Actions 运行 40060113928](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40060113928)：Windows / Linux 均 success。
 
+## 2026-10-24：M4 第一批真实子区域切分
+
+本轮已获用户明确批准，沿 M4 主线实现“单个简单父面 + 一条直线切分”的完整真实流程。
+
+### 本轮实现
+
+- 画布新增“切分区域”工具：拖过选中的父区域生成真实切分线草稿。
+- 使用 Shapely 计算两个有效子面，校验切分线穿过父边界、面积守恒、子面有效且无洞。
+- 新建真实子区域，写入正确的下一级层级和 `parent_id`；父区域保留为隐藏的真实父记录。
+- 子面边界使用真实拓扑对象；共享切分边只保存一份，两个 HalfEdge 方向相反。
+- 区划树将子区域嵌套到父区域节点；画布、区域表、属性和操作日志同步更新。
+- 整个切分通过现有快照命令进入撤销栈，支持撤销/重做；失败时不留下部分对象。
+- 更新 README、路线图、已知问题和 M4-01 验收材料。
+
+### 本地验证（Linux / Python 3.12.14 / PyQt6 6.11.0 / Qt 6.11.2）
+
+| 检查 | 结果 |
+|---|---|
+| `ruff check .` | 通过 |
+| `ruff format --check .` | 通过 |
+| 完整 `pytest -q` | 151 项通过 |
+| M4 切分专项 | 子面面积守恒、父子关系、共享边、树同步和撤销通过 |
+| wheel / sdist 构建 | 成功；独立 wheel 验证和离屏启动通过 |
+| GitHub Windows / Linux CI | 运行 40061597406 success |
+| Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
+
+### 未完成与下一步
+
+- 复杂多部件父面、多次连续切分、飞地、合并和完整邻接编辑属于后续 M4 批次。
+- 需要 Windows 10/11 实机验证切分预览、命名对话框、撤销快捷键和高 DPI 布局。
+
+### 本批提交与 CI 证据
+
+- 功能提交：[`74f2d4f`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/74f2d4fd1c280cc22828e1fb55fc9740bea71a32)。
+- [GitHub Actions 运行 40061597406](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40061597406)：Windows / Linux 均 success。
+
