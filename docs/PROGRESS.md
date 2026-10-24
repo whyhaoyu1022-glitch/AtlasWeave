@@ -424,3 +424,33 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 格式修复提交：[`4126b23`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/4126b23849a32d34fd53d4d06647ec4417ca43e6)。
 - [GitHub Actions 运行 40058886896](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40058886896)：Windows / Linux 均 success。
 
+## 2026-10-24：M3 第三批区域创建撤销与重做
+
+本轮已获用户明确批准，沿 M3 主线补齐区域创建的命令历史基础。
+
+### 本轮实现
+
+- 引入 `QUndoStack` 和不可变 `ProjectSnapshotCommand`，区域创建由命令执行并支持 undo/redo。
+- 逐点绘制和自由手绘统一进入同一撤销栈；撤销恢复创建前的工程快照和选择，重做恢复创建后的快照和选择。
+- 新增编辑菜单、工具栏动作、`Ctrl+Z` 和 `Ctrl+Shift+Z` 快捷键。
+- 撤销栈 clean index 驱动标题星号、保存按钮状态和关闭前未保存确认；保存成功后更新 clean 状态。
+- 新建工程或打开工程时清空旧工程历史；创建新命令时自动丢弃重做分支。
+- 更新 README、路线图、已知问题和 M3-03 验收材料。
+
+### 本地验证（Linux / Python 3.12.14 / PyQt6 6.11.0 / Qt 6.11.2）
+
+| 检查 | 结果 |
+|---|---|
+| `ruff check .` | 通过 |
+| `ruff format --check .` | 通过 |
+| 完整 `pytest -q` | 149 项通过 |
+| 撤销/重做专项 | 创建、撤销、重做、选择恢复和 clean 状态通过 |
+| wheel / sdist 构建 | 待本批收尾执行 |
+| GitHub Windows / Linux CI | 待本批提交后核对 |
+| Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
+
+### 未完成与下一步
+
+- 撤销栈目前覆盖区域创建；子区域切分、共享边编辑、属性编辑和复杂几何命令将在后续批次接入。
+- 需要 Windows 10/11 实机验证快捷键、菜单状态、标题星号和高 DPI 布局。
+

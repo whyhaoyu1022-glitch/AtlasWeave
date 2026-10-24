@@ -141,3 +141,28 @@ def test_freehand_action_enters_mutually_exclusive_canvas_mode(qtbot, tmp_path):
     assert "自由手绘" in window.statusBar().currentMessage()
     window.freehand_action.setChecked(False)
     window.close()
+
+
+def test_region_creation_is_undoable_and_redoable(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.project = Project(name="撤销测试")
+    window._show_project_workspace()
+
+    window._commit_region(Polygon(((10, 10), (40, 10), (25, 40))), "三角区域", "国家")
+    region_id = next(iter(window.project.regions))
+    assert window.undo_stack.count() == 1
+    assert window.dirty
+    assert window.undo_stack.isClean() is False
+
+    window.undo_action.trigger()
+    assert not window.project.regions
+    assert not window.dirty
+    assert window.canvas.selected_region_ids == set()
+
+    window.redo_action.trigger()
+    assert set(window.project.regions) == {region_id}
+    assert window.dirty
+    assert window.canvas.selected_region_ids == {region_id}
+    window.dirty = False
+    window.close()

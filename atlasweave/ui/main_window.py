@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR, QByteArray, Qt, QUrl
-from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
+from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence, QUndoStack
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -45,6 +45,7 @@ from shapely.validation import explain_validity
 
 from atlasweave import APP_NAME, __version__
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
+from atlasweave.commands.project_commands import ProjectSnapshotCommand
 from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
@@ -385,6 +386,8 @@ class MainWindow(QMainWindow):
         self.project: Project | None = None
         self.project_path: Path | None = None
         self.dirty = False
+        self.undo_stack = QUndoStack(self)
+        self.undo_stack.indexChanged.connect(self._history_index_changed)
         self.canvas = MapCanvas(self)
         self.canvas.coordinate_changed.connect(self._update_coordinate_status)
         self.canvas.zoom_changed.connect(self._update_zoom_status)
@@ -621,6 +624,13 @@ class MainWindow(QMainWindow):
         self.save_as_action.triggered.connect(self.save_project_as)
         self.save_as_action.setEnabled(False)
         file_menu.addAction(self.save_as_action)
+        edit_menu = self.menuBar().addMenu("编辑(&E)")
+        self.undo_action = self.undo_stack.createUndoAction(self, "撤销")
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.redo_action = self.undo_stack.createRedoAction(self, "重做")
+        self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
         file_menu.addSeparator()
         self.exit_action = QAction("退出(&X)", self)
         self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
@@ -669,6 +679,9 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.addAction(self.pan_action)
         self.navigation_toolbar.addAction(self.draw_action)
         self.navigation_toolbar.addAction(self.freehand_action)
+        self.navigation_toolbar.addSeparator()
+        self.navigation_toolbar.addAction(self.undo_action)
+        self.navigation_toolbar.addAction(self.redo_action)
         self.navigation_toolbar.addSeparator()
         self.navigation_toolbar.addAction(self.zoom_out_action)
         self.navigation_toolbar.addAction(self.zoom_in_action)
@@ -720,6 +733,24 @@ class MainWindow(QMainWindow):
     def _open_recent_item(self, item: QListWidgetItem) -> None:
         if self._confirm_discard():
             self._load_project(Path(item.data(Qt.ItemDataRole.UserRole)))
+
+    def _history_index_changed(self, _index: int) -> None:
+        self.dirty = not self.undo_stack.isClean()
+        self._update_actions()
+
+    def _apply_history_snapshot(self, project: Project, selected_ids, message: str) -> None:
+        self.project = project
+        self._refresh_project_tree()
+        self.canvas.set_selection(selected_ids)
+        self.operation_log.appendPlainText(message)
+        self.statusBar().showMessage(message, 4000)
+        self.dirty = not self.undo_stack.isClean()
+        self._update_actions()
+
+    def _reset_history(self) -> None:
+        self.undo_stack.clear()
+        self.undo_stack.setClean()
+        self.dirty = False
 
     def _update_actions(self) -> None:
         has_project = self.project is not None
@@ -835,22 +866,29 @@ class MainWindow(QMainWindow):
     def _commit_region(self, polygon, name: str, type_name: str) -> None:
         if self.project is None:
             return
+        before_project = self.project
+        before_selection = self.canvas.selected_region_ids
         try:
-            self.project, region = create_top_level_region(self.project, polygon, name, type_name)
+            after_project, region = create_top_level_region(self.project, polygon, name, type_name)
         except RegionCommandError as exc:
             self.issue_panel.setPlainText(f"区域创建失败：\n{exc}")
             self.statusBar().showMessage(str(exc), 5000)
             return
-        self.dirty = True
+        self.undo_stack.push(
+            ProjectSnapshotCommand(
+                self,
+                before_project,
+                after_project,
+                before_selection,
+                (region.id,),
+                f"创建顶级区域：{name}（{type_name}）",
+            )
+        )
         self.canvas.cancel_drawing()
         self.canvas.cancel_freehand()
         self.draw_action.setChecked(False)
         self.freehand_action.setChecked(False)
-        self._refresh_project_tree()
-        self.canvas.set_selection([region.id])
-        self.operation_log.appendPlainText(f"创建顶级区域：{name}（{type_name}）")
-        self.statusBar().showMessage(f"已创建区域：{name}", 5000)
-        self._update_actions()
+        self.statusBar().showMessage(f"已创建区域：{name}（可撤销）", 5000)
 
     def new_project(self) -> None:
         if not self._confirm_discard():
@@ -869,7 +907,7 @@ class MainWindow(QMainWindow):
             self.loaded_project = LoadedProject(
                 project=project, path=result.path, validation=result.validation
             )
-            self.dirty = False
+            self._reset_history()
             self._show_project_workspace()
             warning = self._touch_recent()
             if warning:
@@ -899,7 +937,7 @@ class MainWindow(QMainWindow):
         self.loaded_project = loaded
         self.project = loaded.project
         self.project_path = loaded.path
-        self.dirty = False
+        self._reset_history()
         self._show_project_workspace()
         warnings = [message for message in (loaded.warning, self._touch_recent()) if message]
         if warnings:
@@ -983,6 +1021,7 @@ class MainWindow(QMainWindow):
             self.loaded_project = LoadedProject(
                 project=self.project, path=result.path, validation=result.validation
             )
+        self.undo_stack.setClean()
         self.dirty = False
         self._update_actions()
         self.statusBar().showMessage(f"已保存：{self.project_path}", 5000)
