@@ -409,12 +409,18 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 | `ruff format --check .` | 通过 |
 | 完整 `pytest -q` | 148 项通过 |
 | 自由手绘专项 | 轨迹采样、闭合简化、真实世界点和工具互斥通过 |
-| wheel / sdist 构建 | 待本轮收尾执行 |
-| GitHub Windows / Linux CI | 待提交后核对 |
+| wheel / sdist 构建 | 成功；独立 wheel 验证和离屏启动通过 |
+| GitHub Windows / Linux CI | 运行 40058886896 success |
 | Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
 
 ### 未完成与下一步
 
 - 撤销/重做、子区域切分、共享边编辑和拖放仍属于后续 M3/M4 批次。
 - 自由手绘需要 Windows 10/11 实机确认高 DPI、长轨迹采样和原生区域元数据对话框。
+
+### 本批提交与 CI 证据
+
+- 功能提交：[`facbbc8`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/facbbc87e1169def88b7b5c31a74d4b25e9176db)。
+- 格式修复提交：[`4126b23`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/4126b23849a32d34fd53d4d06647ec4417ca43e6)。
+- [GitHub Actions 运行 40058886896](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40058886896)：Windows / Linux 均 success。
 
