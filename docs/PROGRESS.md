@@ -46,7 +46,7 @@ M0 实现、本地自动化与双平台 CI 已完成；人工验收待完成，�
 ### 已提交的验证证据
 
 - 实现提交：`22392aa28ad7b85f6dd5a3687c68a468d710e924`。
-- [GitHub Actions 第 1 次运行](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38151046535)：Windows 和 Linux 两个作业均 success。
+- [GitHub Actions 第 1 次运行](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/38151046535)：Windows 和 Linux 两个作业均 success。
 - 两个平台均通过静态检查、自动化测试、真实窗口冒烟、wheel/sdist 构建及脱离源码的独立安装启动。
 - 运行附件 `m0-windows-latest` / `m0-ubuntu-latest` 包含测试报告、窗口截图和 Python 分发包；不是正式 Windows EXE 安装包。
 - [本地实际窗口截图](acceptance/m0-window.png)。
@@ -96,7 +96,7 @@ M0 实现、本地自动化与双平台 CI 已完成；人工验收待完成，�
 ### 本轮提交与 CI 证据
 
 - 实现提交：`1bcefc5581bd22152df62851517c694768e142b7`。
-- [本轮 GitHub Actions](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38181714497)：Windows / Linux 作业均 success。
+- [本轮 GitHub Actions](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/38181714497)：Windows / Linux 作业均 success。
 - 静态检查、99 项测试、主窗口冒烟、构建、独立安装后领域模型与 GUI 验证均通过。
 - 附件 `atlasweave-windows-latest` / `atlasweave-ubuntu-latest` 包含测试报告、实际骨架窗口截图与 Python wheel/sdist；不是正式 Windows EXE。
 - 收尾提交仅补充验收文档，产品代码与上述已验证实现提交一致。
@@ -137,7 +137,7 @@ M1 服务层 IO 已完成；尚缺 UI 打开/保存菜单、未保存标记、�
 ### 本批收尾证据
 
 - 实现提交：`046165595ac8c9c9315e9d31b52c876ea87371bb`。
-- [GitHub Actions 运行 38269970209](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38269970209)：Windows / Linux 均 success。
+- [GitHub Actions 运行 38269970209](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/38269970209)：Windows / Linux 均 success。
 - 本地完整回归：109 项测试通过；ruff check、构建、独立 wheel 安装与工程 IO 探针通过。
 - 未完成：主窗口尚未接入打开/保存/最近工程菜单；Windows 实机人工验收仍需用户执行。
 
@@ -176,7 +176,7 @@ M1 服务层 IO 已完成；尚缺 UI 打开/保存菜单、未保存标记、�
 ### 本批提交与 CI 证据
 
 - 实现提交：`c42206e7aa108bad2bf7121755ce8ed862ce4c58`。
-- [GitHub Actions 运行 38317639606](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38317639606)：Windows / Linux 均 success。
+- [GitHub Actions 运行 38317639606](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/38317639606)：Windows / Linux 均 success。
 - 本地完整回归 111 项通过；Qt 离屏启动、wheel 独立安装和工程 IO 探针通过。
 
 
@@ -236,7 +236,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 ### 修复提交与 CI 证据
 
 - 修复提交：`e8cfd70976c3f2d628a514f49d057c081a302aba`。
-- [GitHub Actions 运行 38482737436](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/38482737436)：Windows / Linux 全部 success。
+- [GitHub Actions 运行 38482737436](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/38482737436)：Windows / Linux 全部 success。
 - Windows 6 项工程 IO 失败的共同根因为临时 ZIP 以只读句柄调用 `os.fsync`；改为 `r+b` 后完整 131 项回归、构建、wheel 验证和双平台 CI 均通过。
 
 ## 2026-10-17：M2 第二批真实画布导航
@@ -269,7 +269,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 完整四步新建向导、停靠面板、选择、绘制和编辑命令仍未完成。
 - Windows 现有 20 项跳过测试仍是测试基础设施待办，不作为本批产品目标。
 - 本批提交后必须核对新的 Windows/Linux CI；若出现失败，只修复阻塞主线的回归并如实记录。
-- [GitHub Actions 运行 39044452085](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39044452085)：Windows / Linux 均成功；Windows 跳过项仍按测试基础设施待办记录。
+- [GitHub Actions 运行 39044452085](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39044452085)：Windows / Linux 均成功；Windows 跳过项仍按测试基础设施待办记录。
 
 ## 2026-10-18：M2 第三批四步新建工程向导
 
@@ -286,7 +286,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 ### 验证与未完成
 
 - 本地窗口回归：`tests/test_window.py` 6 项通过；向导专项 3 项通过；完整回归 137 项通过；ruff 检查和格式检查通过；wheel/sdist 构建成功。
-- [GitHub Actions 运行 39089621488](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39089621488)：Windows / Linux 均 success；两平台静态检查、137 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
+- [GitHub Actions 运行 39089621488](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39089621488)：Windows / Linux 均 success；两平台静态检查、137 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
 - Windows 10/11 原生模态窗口和高 DPI 仍需每周人工验收；停靠面板、选择、绘制和编辑属于后续 M2/M3 批次。
 
 ## 2026-10-19：M2 第四批停靠工作区与工程导航
@@ -304,7 +304,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 ### 验证与未完成
 
 - 新增停靠面板和工程树 UI 测试；完整回归 138 项通过，ruff 检查和格式检查通过，wheel/sdist 构建、独立 wheel 验证和离屏启动冒烟通过。
-- [GitHub Actions 运行 39173081145](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39173081145)：Windows / Linux 均 success；两平台静态检查、138 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
+- [GitHub Actions 运行 39173081145](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39173081145)：Windows / Linux 均 success；两平台静态检查、138 项测试、窗口冒烟、构建和独立 wheel 验证均成功。
 - 区域选择、框选、绘制、编辑命令和拖放仍属于后续 M2/M3 批次；Windows 10/11 实机验收仍待执行。
 
 ## 2026-10-20：M2 第五批真实区域选择与树同步
@@ -334,7 +334,7 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 本批不包含多边形绘制、编辑命令、撤销栈和拖放；这些属于 M3/M4 主线。
 - 锁定区域当前只保证选择和查看，编辑命令接入时必须拒绝修改。
 - 双平台 CI 已核对；准备本周 M2 阶段验收材料。
-- GitHub Actions 运行 [39336740511](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39336740511) 于 2026-10-19 完成；Windows / Linux 均通过。
+- GitHub Actions 运行 [39336740511](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39336740511) 于 2026-10-19 完成；Windows / Linux 均通过。
 
 ## 2026-10-20：M2-05 选择质量复核与修复
 
@@ -385,9 +385,9 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 功能提交与 CI
 
-- 功能提交：[85fc84f](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/85fc84f87a41c01049fb483581406d5ed889f3ac)。
-- [GitHub Actions 运行 39513192829](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513192829) 已完成；Windows / Linux 均 success。
-- 文档收尾提交：[aabd21b](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/aabd21b3392a0c70fb647dac755a792bdc46fd5a)；[GitHub Actions 运行 39513505536](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513505536) 已完成；Windows / Linux 均 success。
+- 功能提交：[85fc84f](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/85fc84f87a41c01049fb483581406d5ed889f3ac)。
+- [GitHub Actions 运行 39513192829](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39513192829) 已完成；Windows / Linux 均 success。
+- 文档收尾提交：[aabd21b](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/aabd21b3392a0c70fb647dac755a792bdc46fd5a)；[GitHub Actions 运行 39513505536](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/39513505536) 已完成；Windows / Linux 均 success。
 
 ## 2026-10-24：M3 第二批自由手绘区域创建
 
@@ -420,9 +420,9 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 本批提交与 CI 证据
 
-- 功能提交：[`facbbc8`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/facbbc87e1169def88b7b5c31a74d4b25e9176db)。
-- 格式修复提交：[`4126b23`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/4126b23849a32d34fd53d4d06647ec4417ca43e6)。
-- [GitHub Actions 运行 40058886896](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40058886896)：Windows / Linux 均 success。
+- 功能提交：[`facbbc8`](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/facbbc87e1169def88b7b5c31a74d4b25e9176db)。
+- 格式修复提交：[`4126b23`](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/4126b23849a32d34fd53d4d06647ec4417ca43e6)。
+- [GitHub Actions 运行 40058886896](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40058886896)：Windows / Linux 均 success。
 
 ## 2026-10-24：M3 第三批区域创建撤销与重做
 
@@ -456,8 +456,8 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 本批提交与 CI 证据
 
-- 功能提交：[`7751525`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/775152536d8501b52e0013c7e05489149b4f4e63)。
-- [GitHub Actions 运行 40060113928](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40060113928)：Windows / Linux 均 success。
+- 功能提交：[`7751525`](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/775152536d8501b52e0013c7e05489149b4f4e63)。
+- [GitHub Actions 运行 40060113928](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40060113928)：Windows / Linux 均 success。
 
 ## 2026-10-24：M4 第一批真实子区域切分
 
@@ -492,6 +492,6 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 
 ### 本批提交与 CI 证据
 
-- 功能提交：[`74f2d4f`](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/74f2d4fd1c280cc22828e1fb55fc9740bea71a32)。
-- [GitHub Actions 运行 40061597406](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/40061597406)：Windows / Linux 均 success。
+- 功能提交：[`74f2d4f`](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/74f2d4fd1c280cc22828e1fb55fc9740bea71a32)。
+- [GitHub Actions 运行 40061597406](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40061597406)：Windows / Linux 均 success。
 
