@@ -495,3 +495,39 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 功能提交：[`74f2d4f`](https://github.com/whyhaoyu1022-glitch/AtlasWeave/commit/74f2d4fd1c280cc22828e1fb55fc9740bea71a32)。
 - [GitHub Actions 运行 40061597406](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40061597406)：Windows / Linux 均 success。
 
+
+## 2026-10-24：M4 第二批多段切分预览与层级安全约束
+
+本轮已获用户明确批准，沿 M4 主线把单次二分切分扩展为可预览的多结果切分，并修复了切分命令固定使用第二层级、可能生成同级父子关系的阻塞问题。
+
+### 本轮实现
+
+- 新增只读 `SplitPreview` 和 `preview_region_split`，切分确认前计算结果面、最小面积和面积守恒。
+- 开放折线可生成两个或更多有效结果面；拒绝自相交、过短、不穿越边界、含洞、零面积和面积不守恒结果。
+- 切分命令按父区域实际层级选择下一级启用层级，禁止不可见父面和已有子区域父面重复切分。
+- 动态命名对话框按结果数量收集名称；画布显示临时结果面，取消不修改正式工程。
+- 结果区域共享同一父级，内部切分边复用 Edge 并使用相反 HalfEdge；整体沿用快照撤销/重做和保存回读路径。
+- 更新 README、路线图、已知问题和 M4-02 验收材料。
+
+### 本地验证
+
+| 检查 | 结果 |
+|---|---|
+| `ruff check .` | 通过 |
+| `ruff format --check .` | 通过 |
+| 完整 `pytest -q` | 154 项通过 |
+| M4-02 专项 | 多结果面积守恒、共享边、下一级层级、重复切分拒绝、动态命名和预览路径通过 |
+| wheel / sdist 构建 | 成功 |
+| 本地独立 wheel 验证 | 因当前运行环境访问 PyPI 被策略阻断，未完成；未伪报通过 |
+| GitHub Actions | [运行 40106556669](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40106556669) Windows/Linux 均 success，包含独立 wheel 验证 |
+| Windows 10/11 实机人工验收 | 待完成；CI 和离屏测试不能替代 |
+
+### 未完成与下一步
+
+- 多部件父面、高级重新切分、连续覆盖式六省流程、飞地、合并、共享边顶点编辑和拖放父级仍属于后续 M4/M5 批次。
+- 需要 Windows 10/11 实机检查多结果预览、动态命名、高 DPI、取消无副作用、撤销重做和保存重开。
+
+### 本批提交与 CI
+
+- 功能提交：`ea83130a6f9a3d4c732197f72ccc8ce4956060d8`。
+- [GitHub Actions 运行 40106556669](https://github.com/whyhaoyu1022-glitch/AtlasWeave/actions/runs/40106556669)：Windows / Linux 作业均 success。
