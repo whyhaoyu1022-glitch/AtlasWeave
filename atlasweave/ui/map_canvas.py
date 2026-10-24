@@ -664,4 +664,3 @@ class MapCanvas(QWidget):
             elif geometry.intersects(selection):
                 result.append(region_id)
         return result
-

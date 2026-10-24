@@ -53,4 +53,3 @@ def test_polygon_from_freehand_closes_and_simplifies_stroke():
     assert polygon.is_valid
     assert polygon.exterior.is_ring
     assert polygon.area == pytest.approx(900, abs=1)
-

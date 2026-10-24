@@ -141,4 +141,3 @@ def test_freehand_action_enters_mutually_exclusive_canvas_mode(qtbot, tmp_path):
     assert "自由手绘" in window.statusBar().currentMessage()
     window.freehand_action.setChecked(False)
     window.close()
-

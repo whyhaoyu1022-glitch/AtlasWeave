@@ -173,4 +173,3 @@ def test_freehand_mode_collects_stroke_and_emits_world_points(qtbot):
     assert len(completed[0]) == 4
     canvas.cancel_freehand()
     assert not canvas.freehand_points
-

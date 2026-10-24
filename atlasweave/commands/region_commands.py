@@ -117,4 +117,3 @@ def create_top_level_region(
         ),
         region,
     )
-

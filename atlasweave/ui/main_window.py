@@ -1117,4 +1117,3 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "设置未保存", str(exc))
         logger.info("Window closed")
         super().closeEvent(event)
-
