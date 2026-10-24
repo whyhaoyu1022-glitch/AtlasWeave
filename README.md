@@ -2,7 +2,7 @@
 
 基于 Python 3.12+ / PyQt6 的虚构行政地图桌面编辑器。
 
-**当前阶段：M2 工作区和区域选择已接入，M3 已支持首批真实多边形绘制与顶级区域创建；共享边编辑、撤销和导出仍未完成，不是 V1 成品。**
+**当前阶段：M2 工作区和区域选择已接入，M3 已支持真实多边形与自由手绘顶级区域创建；共享边编辑、撤销和导出仍未完成，不是 V1 成品。**
 仓库名保留 `Atlasveave`，产品与 Python 包名使用规范中的 `AtlasWeave` / `atlasweave`。
 
 ## 安装与启动
@@ -22,7 +22,7 @@ python -m pip install -e ".[dev]"
 python -m atlasweave
 ```
 
-已实现的菜单：文件 → 新建/打开/保存/另存为/退出；视图 → 画布缩放、适应世界、平移；帮助 → 打开日志目录 / 关于疆理。
+已实现的菜单：文件 → 新建/打开/保存/另存为/退出；视图 → 画布缩放、适应世界、平移、绘制区域、自由手绘；帮助 → 打开日志目录 / 关于疆理。
 窗口位置和大小在正常退出时保存。日志仅保存在本机，不上传。
 默认数据目录由 Qt 按操作系统用户目录确定；测试可以使用 `--data-dir` 隔离。
 
@@ -51,6 +51,7 @@ uv build --no-build-isolation
 - [M2 第一批验收](docs/acceptance/M2-01.md)；[M2 第二批验收](docs/acceptance/M2-02.md)；[M2 第三批验收](docs/acceptance/M2-03.md)；[M2 第四批验收](docs/acceptance/M2-04.md)。
 - [M2 第五批验收](docs/acceptance/M2-05.md)：真实区域选择、框选和树画布同步。
 - [M3 第一批验收](docs/acceptance/M3-01.md)：多边形绘制与顶级区域创建。
+- [M3 第二批验收](docs/acceptance/M3-02.md)：自由手绘与顶级区域创建。
 - [已知问题](docs/KNOWN_ISSUES.md)；[依赖声明](THIRD_PARTY_NOTICES.md)。
 
 每日北京时间 06:30、22:00 提交开发计划，用户批准该轮计划后执行。
@@ -63,3 +64,5 @@ uv build --no-build-isolation
 Domain 不得依赖 Qt 控件，UI 不得绕过命令系统修改工程数据。
 
 源码许可尚待仓库所有者确定；公开仓库不代表已授予特定开源许可。
+
+

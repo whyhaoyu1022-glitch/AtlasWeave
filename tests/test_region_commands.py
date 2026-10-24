@@ -1,7 +1,12 @@
 import pytest
+from PyQt6.QtCore import QPointF
 from shapely.geometry import Polygon
 
-from atlasweave.commands.region_commands import RegionCommandError, create_top_level_region
+from atlasweave.commands.region_commands import (
+    RegionCommandError,
+    create_top_level_region,
+    polygon_from_freehand,
+)
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import ProjectStore
 
@@ -31,3 +36,21 @@ def test_create_top_level_region_rejects_overlap_and_out_of_bounds():
         create_top_level_region(
             project, Polygon(((1190, 90), (1210, 90), (1190, 110))), "越界", "国家"
         )
+
+
+def test_polygon_from_freehand_closes_and_simplifies_stroke():
+    polygon = polygon_from_freehand(
+        [
+            QPointF(10, 10),
+            QPointF(10.01, 10.01),
+            QPointF(40, 10),
+            QPointF(40, 40),
+            QPointF(10, 40),
+        ],
+        tolerance=0.05,
+    )
+
+    assert polygon.is_valid
+    assert polygon.exterior.is_ring
+    assert polygon.area == pytest.approx(900, abs=1)
+

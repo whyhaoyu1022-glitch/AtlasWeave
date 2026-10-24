@@ -45,7 +45,11 @@ from shapely.validation import explain_validity
 
 from atlasweave import APP_NAME, __version__
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
-from atlasweave.commands.region_commands import RegionCommandError, create_top_level_region
+from atlasweave.commands.region_commands import (
+    RegionCommandError,
+    create_top_level_region,
+    polygon_from_freehand,
+)
 from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import (
@@ -386,6 +390,7 @@ class MainWindow(QMainWindow):
         self.canvas.zoom_changed.connect(self._update_zoom_status)
         self.canvas.selection_changed.connect(self._canvas_selection_changed)
         self.canvas.polygon_completed.connect(self._polygon_completed)
+        self.canvas.freehand_completed.connect(self._freehand_completed)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -652,12 +657,18 @@ class MainWindow(QMainWindow):
         self.draw_action.setShortcut(QKeySequence("D"))
         self.draw_action.toggled.connect(self._set_draw_mode)
         view_menu.addAction(self.draw_action)
+        self.freehand_action = QAction("自由手绘", self)
+        self.freehand_action.setCheckable(True)
+        self.freehand_action.setShortcut(QKeySequence("F"))
+        self.freehand_action.toggled.connect(self._set_freehand_mode)
+        view_menu.addAction(self.freehand_action)
         self._create_panel_actions(view_menu)
 
         self.navigation_toolbar = QToolBar("地图导航", self)
         self.navigation_toolbar.setObjectName("navigationToolbar")
         self.navigation_toolbar.addAction(self.pan_action)
         self.navigation_toolbar.addAction(self.draw_action)
+        self.navigation_toolbar.addAction(self.freehand_action)
         self.navigation_toolbar.addSeparator()
         self.navigation_toolbar.addAction(self.zoom_out_action)
         self.navigation_toolbar.addAction(self.zoom_in_action)
@@ -697,6 +708,7 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.hide()
         self.canvas.set_pan_mode(False)
         self.draw_action.setChecked(False)
+        self.freehand_action.setChecked(False)
         self.canvas.clear_regions()
         self.pan_action.setChecked(False)
         self.coordinate_status.setText("X —  Y —")
@@ -724,6 +736,7 @@ class MainWindow(QMainWindow):
             action.setEnabled(has_project)
         self.pan_action.setEnabled(has_project)
         self.draw_action.setEnabled(writable)
+        self.freehand_action.setEnabled(writable)
 
     def _set_draw_mode(self, enabled: bool) -> None:
         if enabled and (self.project is None or self.read_only):
@@ -731,12 +744,25 @@ class MainWindow(QMainWindow):
             return
         if enabled:
             self.pan_action.setChecked(False)
+            self.freehand_action.setChecked(False)
             self.statusBar().showMessage(
                 "绘制区域：单击添加顶点，点击首点闭合；右键/Backspace 删除最后一点，Esc 取消"
             )
         else:
             self.canvas.cancel_drawing()
         self.canvas.set_draw_mode(enabled)
+
+    def _set_freehand_mode(self, enabled: bool) -> None:
+        if enabled and (self.project is None or self.read_only):
+            self.freehand_action.setChecked(False)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.draw_action.setChecked(False)
+            self.statusBar().showMessage("自由手绘：按住鼠标左键拖动勾勒区域，松开完成；Esc 取消")
+        else:
+            self.canvas.cancel_freehand()
+        self.canvas.set_freehand_mode(enabled)
 
     def _polygon_completed(self, points) -> None:
         if self.project is None or self.read_only:
@@ -751,10 +777,35 @@ class MainWindow(QMainWindow):
             return
         self._commit_region(polygon, dialog.region_name, dialog.type_name)
 
+    def _freehand_completed(self, points) -> None:
+        if self.project is None or self.read_only:
+            return
+        try:
+            polygon = polygon_from_freehand(
+                points,
+                tolerance=max(self.project.tolerances.minimum_face_area**0.5 * 0.01, 1e-6),
+            )
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"自由手绘无法创建：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        polygon, error = self._validate_draft_polygon(tuple(polygon.exterior.coords[:-1]))
+        if error:
+            self.issue_panel.setPlainText(f"自由手绘无法创建：\n{error}")
+            self.statusBar().showMessage(error, 5000)
+            return
+        dialog = RegionCreateDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._commit_region(polygon, dialog.region_name, dialog.type_name)
+
     def _validate_draft_polygon(self, points):
         if len(points) < 3:
             return None, "区域至少需要三个顶点。"
-        coords = [(point.x(), point.y()) for point in points]
+        coords = [
+            (point.x(), point.y()) if hasattr(point, "x") else (float(point[0]), float(point[1]))
+            for point in points
+        ]
         polygon = Polygon(coords)
         if not polygon.is_valid:
             return None, f"区域几何无效：{explain_validity(polygon)}"
@@ -792,7 +843,9 @@ class MainWindow(QMainWindow):
             return
         self.dirty = True
         self.canvas.cancel_drawing()
+        self.canvas.cancel_freehand()
         self.draw_action.setChecked(False)
+        self.freehand_action.setChecked(False)
         self._refresh_project_tree()
         self.canvas.set_selection([region.id])
         self.operation_log.appendPlainText(f"创建顶级区域：{name}（{type_name}）")
@@ -983,7 +1036,9 @@ class MainWindow(QMainWindow):
         if not self._has_restored_dock_state:
             self._set_workspace_docks_visible(True)
         self.canvas.set_draw_mode(False)
+        self.canvas.set_freehand_mode(False)
         self.draw_action.setChecked(False)
+        self.freehand_action.setChecked(False)
         self._refresh_project_tree()
         if self.read_only:
             self.statusBar().showMessage("只读工程：当前版本无法保证兼容转换无损")
@@ -1062,3 +1117,4 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "设置未保存", str(exc))
         logger.info("Window closed")
         super().closeEvent(event)
+

@@ -125,3 +125,20 @@ def test_commit_drawn_polygon_creates_real_topology_and_dirty_state(qtbot, tmp_p
     assert window.canvas.selected_region_ids == {region.id}
     window.dirty = False
     window.close()
+
+
+def test_freehand_action_enters_mutually_exclusive_canvas_mode(qtbot, tmp_path):
+    window = MainWindow(SettingsStore(tmp_path / "settings.json"), tmp_path)
+    qtbot.addWidget(window)
+    window.project = Project(name="自由手绘测试")
+    window._show_project_workspace()
+
+    window.freehand_action.setChecked(True)
+
+    assert window.canvas.freehand_mode
+    assert not window.canvas.draw_mode
+    assert not window.draw_action.isChecked()
+    assert "自由手绘" in window.statusBar().currentMessage()
+    window.freehand_action.setChecked(False)
+    window.close()
+

@@ -152,3 +152,25 @@ def test_drawing_mode_collects_points_and_supports_cancel(qtbot):
     assert len(canvas.draft_points) == 2
     canvas.cancel_drawing()
     assert not canvas.draft_points
+
+
+def test_freehand_mode_collects_stroke_and_emits_world_points(qtbot):
+    canvas = MapCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(800, 600)
+    canvas.set_world(100, 100)
+    completed = []
+    canvas.freehand_completed.connect(completed.append)
+    canvas.set_freehand_mode(True)
+    world_points = [QPointF(10, 10), QPointF(40, 10), QPointF(40, 40), QPointF(10, 40)]
+    for point in world_points:
+        canvas._add_freehand_screen_point(canvas.world_to_screen(point))
+
+    assert canvas.freehand_mode
+    assert len(canvas.freehand_points) == 4
+    assert canvas.finish_freehand()
+    assert len(completed) == 1
+    assert len(completed[0]) == 4
+    canvas.cancel_freehand()
+    assert not canvas.freehand_points
+

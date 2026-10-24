@@ -26,6 +26,8 @@ class MapCanvas(QWidget):
     selection_changed = pyqtSignal(object)
     draft_changed = pyqtSignal(object)
     polygon_completed = pyqtSignal(object)
+    freehand_changed = pyqtSignal(object)
+    freehand_completed = pyqtSignal(object)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -54,6 +56,11 @@ class MapCanvas(QWidget):
         self._draw_mode = False
         self._draft_points: list[QPointF] = []
         self._draft_cursor: QPointF | None = None
+        self._freehand_mode = False
+        self._freehand_points: list[QPointF] = []
+        self._freehand_cursor: QPointF | None = None
+        self._freehand_dragging = False
+        self._freehand_last_screen: QPointF | None = None
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -102,6 +109,8 @@ class MapCanvas(QWidget):
 
     def set_draw_mode(self, enabled: bool) -> None:
         self._draw_mode = bool(enabled)
+        if self._draw_mode:
+            self.set_freehand_mode(False)
         self._selection_origin = None
         self._selection_rect = None
         self._selecting = False
@@ -111,6 +120,61 @@ class MapCanvas(QWidget):
         self.setCursor(
             Qt.CursorShape.CrossCursor if self._draw_mode else Qt.CursorShape.ArrowCursor
         )
+        self.update()
+
+    @property
+    def freehand_mode(self) -> bool:
+        return self._freehand_mode
+
+    @property
+    def freehand_points(self) -> tuple[QPointF, ...]:
+        return tuple(QPointF(point) for point in self._freehand_points)
+
+    def set_freehand_mode(self, enabled: bool) -> None:
+        self._freehand_mode = bool(enabled)
+        if self._freehand_mode:
+            self._draw_mode = False
+            self.cancel_drawing()
+        else:
+            self.cancel_freehand()
+        self._selection_origin = None
+        self._selection_rect = None
+        self._selecting = False
+        self._dragging = False
+        self._freehand_dragging = False
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if self._freehand_mode else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    def cancel_freehand(self) -> None:
+        if self._freehand_points or self._freehand_cursor is not None:
+            self._freehand_points.clear()
+            self._freehand_cursor = None
+            self._freehand_dragging = False
+            self._freehand_last_screen = None
+            self.freehand_changed.emit(())
+            self.update()
+
+    def finish_freehand(self) -> bool:
+        if len(self._freehand_points) < 3:
+            return False
+        self._freehand_dragging = False
+        self.freehand_completed.emit(self.freehand_points)
+        return True
+
+    def _add_freehand_screen_point(self, point: QPointF) -> None:
+        if self._freehand_last_screen is not None:
+            if (point - self._freehand_last_screen).manhattanLength() < 3:
+                return
+        self._freehand_last_screen = QPointF(point)
+        world = self.screen_to_world(point)
+        if self._freehand_points:
+            previous = self._freehand_points[-1]
+            if (world - previous).manhattanLength() < 1e-9:
+                return
+        self._freehand_points.append(world)
+        self.freehand_changed.emit(self.freehand_points)
         self.update()
 
     def cancel_drawing(self) -> None:
@@ -299,9 +363,25 @@ class MapCanvas(QWidget):
             for point in draft:
                 painter.drawEllipse(point, 4.0, 4.0)
 
+        if self._freehand_points:
+            freehand = QPolygonF([self.world_to_screen(point) for point in self._freehand_points])
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor("#8B5CF6"), 2.0, Qt.PenStyle.DashLine))
+            painter.drawPolyline(freehand)
+            if self._freehand_cursor is not None:
+                painter.drawLine(freehand[-1], self.world_to_screen(self._freehand_cursor))
+            painter.setBrush(QBrush(QColor("#FFFFFF")))
+            painter.setPen(QPen(QColor("#8B5CF6"), 1.5))
+            step = max(1, len(freehand) // 40)
+            for index, point in enumerate(freehand):
+                if index % step:
+                    continue
+                painter.drawEllipse(point, 3.0, 3.0)
+
         if (
             not self._regions
             and not self._draft_points
+            and not self._freehand_points
             and self._world_width > 0
             and self._world_height > 0
         ):
@@ -333,6 +413,14 @@ class MapCanvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         point = event.position()
+        if self._freehand_mode:
+            self._freehand_cursor = self.screen_to_world(point)
+            if self._freehand_dragging and event.buttons() & Qt.MouseButton.LeftButton:
+                self._add_freehand_screen_point(point)
+            self._emit_coordinate(point)
+            self.update()
+            event.accept()
+            return
         if self._draw_mode:
             self._draft_cursor = self.screen_to_world(point)
             self._emit_coordinate(point)
@@ -354,6 +442,21 @@ class MapCanvas(QWidget):
         super().mouseMoveEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._freehand_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._freehand_dragging = True
+                self._freehand_points.clear()
+                self._freehand_last_screen = None
+                self._add_freehand_screen_point(event.position())
+                self.setFocus()
+                event.accept()
+                return
+            if event.button() == Qt.MouseButton.RightButton:
+                self.cancel_freehand()
+                event.accept()
+                return
+            super().mousePressEvent(event)
+            return
         if self._draw_mode:
             if event.button() == Qt.MouseButton.LeftButton:
                 if (
@@ -400,6 +503,12 @@ class MapCanvas(QWidget):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._freehand_mode and event.button() == Qt.MouseButton.LeftButton:
+            if self._freehand_dragging:
+                self._add_freehand_screen_point(event.position())
+                self.finish_freehand()
+            event.accept()
+            return
         if self._dragging:
             self._dragging = False
             self.setCursor(
@@ -441,6 +550,15 @@ class MapCanvas(QWidget):
         if self._draw_mode:
             if event.key() == Qt.Key.Key_Escape:
                 self.cancel_drawing()
+                event.accept()
+                return
+        if self._freehand_mode:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancel_freehand()
+                event.accept()
+                return
+            if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                self.cancel_freehand()
                 event.accept()
                 return
             if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
@@ -546,3 +664,4 @@ class MapCanvas(QWidget):
             elif geometry.intersects(selection):
                 result.append(region_id)
         return result
+

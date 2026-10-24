@@ -388,3 +388,34 @@ Windows CI 的工程 IO 6 项失败共享同一根因：保存流程对已完成
 - 功能提交：[85fc84f](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/85fc84f87a41c01049fb483581406d5ed889f3ac)。
 - [GitHub Actions 运行 39513192829](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513192829) 已完成；Windows / Linux 均 success。
 - 文档收尾提交：[aabd21b](https://github.com/whyhaoyu1022-glitch/Atlasveave/commit/aabd21b3392a0c70fb647dac755a792bdc46fd5a)；[GitHub Actions 运行 39513505536](https://github.com/whyhaoyu1022-glitch/Atlasveave/actions/runs/39513505536) 已完成；Windows / Linux 均 success。
+
+## 2026-10-24：M3 第二批自由手绘区域创建
+
+本轮已获用户明确批准，先从远端 HEAD 恢复源码并清理未完成的本地恢复状态，再沿 M3 主线交付自由手绘。
+
+### 本轮实现
+
+- 画布新增自由手绘模式：按住左键拖动采样世界坐标，松开后提交草稿；Esc/右键取消。
+- 采样轨迹按屏幕距离去抖，命令层再按世界容差简化并闭合，保留真实 Shapely 多边形。
+- 自由手绘复用顶级区域命令，继续执行自交、面积、世界边界和已有区域重叠校验。
+- 自由手绘与逐点绘制互斥，欢迎页、工程切换、只读工程和创建成功后都会清理工具状态。
+- 新增自由手绘专项单元测试和窗口工具互斥回归测试；非法草稿保留在画布上，成功后同步树、画布、属性和操作日志。
+
+### 本地验证（Linux / Python 3.12.14 / PyQt6 6.11.0 / Qt 6.11.2）
+
+| 检查 | 结果 |
+|---|---|
+| `ruff check .` | 通过 |
+| `ruff format --check .` | 通过 |
+| 完整 `pytest -q` | 148 项通过 |
+| 自由手绘专项 | 轨迹采样、闭合简化、真实世界点和工具互斥通过 |
+| wheel / sdist 构建 | 待本轮收尾执行 |
+| GitHub Windows / Linux CI | 待提交后核对 |
+| Windows 10/11 实机人工验收 | 待完成；离屏测试不能替代 |
+
+### 未完成与下一步
+
+- 撤销/重做、子区域切分、共享边编辑和拖放仍属于后续 M3/M4 批次。
+- 自由手绘需要 Windows 10/11 实机确认高 DPI、长轨迹采样和原生区域元数据对话框。
+
+

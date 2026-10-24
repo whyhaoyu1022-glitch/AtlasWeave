@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from shapely.errors import GEOSException
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, Polygon
 from shapely.geometry.polygon import orient
 from shapely.validation import explain_validity
 
@@ -18,6 +18,32 @@ from atlasweave.domain.topology import Edge, Face, HalfEdge, Ring, Vertex
 
 class RegionCommandError(ValueError):
     """A region command cannot produce a valid project snapshot."""
+
+
+def polygon_from_freehand(points, *, tolerance: float) -> Polygon:
+    """Turn a sampled stroke into a cleaned polygon before command validation."""
+    coordinates = [(float(point.x()), float(point.y())) for point in points]
+    if len(coordinates) < 3:
+        raise RegionCommandError("自由手绘区域至少需要三个采样点。")
+    deduped = [coordinates[0]]
+    for coordinate in coordinates[1:]:
+        if coordinate != deduped[-1]:
+            deduped.append(coordinate)
+    if len(deduped) < 3:
+        raise RegionCommandError("自由手绘轨迹包含的有效点不足。")
+    if deduped[0] != deduped[-1]:
+        deduped.append(deduped[0])
+    line = LineString(deduped)
+    cleaned = line.simplify(max(float(tolerance), 1e-9), preserve_topology=True)
+    cleaned_coordinates = list(cleaned.coords)
+    if len(cleaned_coordinates) < 4:
+        raise RegionCommandError("自由手绘轨迹简化后无法形成闭合区域。")
+    if cleaned_coordinates[0] != cleaned_coordinates[-1]:
+        cleaned_coordinates.append(cleaned_coordinates[0])
+    polygon = Polygon(cleaned_coordinates)
+    if len(polygon.exterior.coords) < 4:
+        raise RegionCommandError("自由手绘轨迹无法形成多边形。")
+    return polygon
 
 
 def create_top_level_region(
@@ -91,3 +117,4 @@ def create_top_level_region(
         ),
         region,
     )
+
