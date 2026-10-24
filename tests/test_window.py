@@ -5,7 +5,7 @@ from shapely.geometry import Polygon
 from atlasweave import APP_NAME
 from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
 from atlasweave.domain.project import Project
-from atlasweave.ui.main_window import MainWindow
+from atlasweave.ui.main_window import MainWindow, RegionSplitDialog
 
 
 def test_window_close_and_reopen_restores_size(qtbot, tmp_path):
@@ -216,3 +216,13 @@ def test_split_action_creates_nested_children_and_is_undoable(qtbot, tmp_path):
     ]
     window.dirty = False
     window.close()
+
+
+def test_split_dialog_collects_all_preview_results(qtbot):
+    dialog = RegionSplitDialog("国家", piece_count=3, minimum_area=12.5)
+    qtbot.addWidget(dialog)
+
+    assert len(dialog.name_edits) == 3
+    assert dialog.names == ("国家 - 新区域 1", "国家 - 新区域 2", "国家 - 新区域 3")
+    dialog._accept()
+    assert dialog.result() == dialog.DialogCode.Accepted

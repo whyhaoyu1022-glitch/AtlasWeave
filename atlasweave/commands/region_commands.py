@@ -1,8 +1,9 @@
-"""Validated, immutable commands for creating top-level regions."""
+"""Validated, immutable commands for creating and splitting regions."""
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from shapely.errors import GEOSException
@@ -12,6 +13,7 @@ from shapely.ops import split as split_geometry
 from shapely.validation import explain_validity
 
 from atlasweave.domain.geometry import Point
+from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.domain.region import Region, RegionStatus
 from atlasweave.domain.topology import Edge, Face, HalfEdge, Ring, Vertex
@@ -19,6 +21,23 @@ from atlasweave.domain.topology import Edge, Face, HalfEdge, Ring, Vertex
 
 class RegionCommandError(ValueError):
     """A region command cannot produce a valid project snapshot."""
+
+
+@dataclass(frozen=True)
+class SplitPreview:
+    """Immutable geometry-only result shown before a split is committed."""
+
+    region_id: str
+    child_level: HierarchyLevel
+    pieces: tuple[Polygon, ...]
+
+    @property
+    def minimum_area(self) -> float:
+        return min(piece.area for piece in self.pieces)
+
+    @property
+    def total_area(self) -> float:
+        return sum(piece.area for piece in self.pieces)
 
 
 def polygon_from_freehand(points, *, tolerance: float) -> Polygon:
@@ -120,56 +139,114 @@ def create_top_level_region(
     )
 
 
-def split_region_into_children(
-    project: Project,
-    region_id: str,
-    cut_points,
-    child_names: tuple[str, str],
-    type_name: str,
-) -> tuple[Project, tuple[Region, Region]]:
-    """Split one simple face into two real child regions with a shared edge."""
+def _point_coordinate(point) -> tuple[float, float]:
+    """Read a Qt point or a plain two-item coordinate without coupling the domain to Qt."""
+    if hasattr(point, "x") and callable(point.x):
+        return float(point.x()), float(point.y())
+    try:
+        x, y = point
+    except (TypeError, ValueError) as exc:
+        raise RegionCommandError("切分线包含无法识别的坐标点。") from exc
+    return float(x), float(y)
+
+
+def _split_target(project: Project, region_id: str) -> tuple[Region, Polygon, HierarchyLevel]:
     if region_id not in project.regions:
         raise RegionCommandError("请选择要切分的区域。")
     parent = project.regions[region_id]
     if parent.locked:
         raise RegionCommandError(f"区域“{parent.name}”已锁定，不能切分。")
-    if len(project.hierarchy_levels) < 2:
-        raise RegionCommandError("工程至少需要两个行政层级才能创建子区域。")
+    if not parent.visible:
+        raise RegionCommandError(f"区域“{parent.name}”当前不可见，不能重复切分。")
+    if any(region.parent_id == parent.id for region in project.regions.values()):
+        raise RegionCommandError("该区域已经包含子区域；请先完成子区域处理后再切分。")
     if len(parent.face_ids) != 1:
         raise RegionCommandError("本批切分只支持没有飞地的单面区域。")
-    names = tuple(name.strip() for name in child_names)
-    if len(names) != 2 or any(not name for name in names):
-        raise RegionCommandError("两个子区域名称都不能为空。")
-    if names[0] == names[1]:
-        raise RegionCommandError("两个子区域名称不能重复。")
-    if not type_name.strip():
-        raise RegionCommandError("子区域类型不能为空。")
+    levels_by_id = {level.id: level for level in project.hierarchy_levels}
+    parent_level = levels_by_id.get(parent.level_id)
+    if parent_level is None:
+        raise RegionCommandError("区域引用的行政层级不存在。")
+    child_levels = sorted(
+        (
+            level
+            for level in project.hierarchy_levels
+            if level.enabled and level.order > parent_level.order
+        ),
+        key=lambda level: level.order,
+    )
+    if not child_levels:
+        raise RegionCommandError("没有比当前区域更低的可用行政层级。")
     try:
         parent_polygon = project.topology.face_polygon(parent.face_ids[0])
     except (KeyError, ValueError, GEOSException) as exc:
         raise RegionCommandError(f"父区域几何无法验证：{exc}") from exc
     if not parent_polygon.is_valid or len(parent_polygon.interiors):
         raise RegionCommandError("本批切分要求父区域是无洞的有效单面多边形。")
-    coordinates = [(float(point.x()), float(point.y())) for point in cut_points]
-    if len(coordinates) < 2:
+    return parent, parent_polygon, child_levels[0]
+
+
+def preview_region_split(project: Project, region_id: str, cut_points) -> SplitPreview:
+    """Compute valid split pieces without changing the project snapshot."""
+    parent, parent_polygon, child_level = _split_target(project, region_id)
+    coordinates = [_point_coordinate(point) for point in cut_points]
+    deduped: list[tuple[float, float]] = []
+    for coordinate in coordinates:
+        if not deduped or coordinate != deduped[-1]:
+            deduped.append(coordinate)
+    if len(deduped) < 2:
         raise RegionCommandError("切分线至少需要两个点。")
-    cut_line = LineString(coordinates)
-    if not cut_line.is_valid or cut_line.length <= project.tolerances.minimum_edge_length:
+    cut_line = LineString(deduped)
+    if not cut_line.is_valid or not cut_line.is_simple:
+        raise RegionCommandError("切分线无效或存在自相交。")
+    if cut_line.length <= project.tolerances.minimum_edge_length:
         raise RegionCommandError("切分线无效或长度过短。")
     if not cut_line.intersects(parent_polygon.boundary):
         raise RegionCommandError("切分线必须穿过父区域边界。")
     try:
-        pieces = list(split_geometry(parent_polygon, cut_line).geoms)
+        pieces = tuple(
+            piece
+            for piece in split_geometry(parent_polygon, cut_line).geoms
+            if isinstance(piece, Polygon) and piece.area > 0
+        )
     except (GEOSException, ValueError) as exc:
         raise RegionCommandError(f"切分计算失败：{exc}") from exc
-    pieces = [piece for piece in pieces if isinstance(piece, Polygon) and piece.area > 0]
-    if len(pieces) != 2:
-        raise RegionCommandError("切分线必须把父区域分成两个有效子区域。")
+    if len(pieces) < 2:
+        raise RegionCommandError("切分线必须把父区域分成至少两个有效子区域。")
     tolerance = project.tolerances
+    for piece in pieces:
+        if not piece.is_valid or len(piece.interiors):
+            raise RegionCommandError("切分结果包含无效面或洞。")
+        if piece.area <= tolerance.minimum_face_area:
+            raise RegionCommandError("切分结果包含小于工程容差的区域。")
     if abs(sum(piece.area for piece in pieces) - parent_polygon.area) > max(
         tolerance.minimum_face_area, parent_polygon.area * 1e-8
     ):
         raise RegionCommandError("切分结果面积与父区域不守恒。")
+    return SplitPreview(region_id=parent.id, child_level=child_level, pieces=pieces)
+
+
+def split_region_into_children(
+    project: Project,
+    region_id: str,
+    cut_points,
+    child_names: Sequence[str],
+    type_name: str,
+) -> tuple[Project, tuple[Region, ...]]:
+    """Split one simple face into two or more real child regions with shared edges."""
+    parent = project.regions.get(region_id)
+    if parent is None:
+        raise RegionCommandError("请选择要切分的区域。")
+    names = tuple(name.strip() for name in child_names)
+    if any(not name for name in names):
+        raise RegionCommandError("所有子区域名称都不能为空。")
+    if len(set(names)) != len(names):
+        raise RegionCommandError("子区域名称不能重复。")
+    if not type_name.strip():
+        raise RegionCommandError("子区域类型不能为空。")
+    preview = preview_region_split(project, region_id, cut_points)
+    pieces = preview.pieces
+    if len(names) != len(pieces):
+        raise RegionCommandError(f"请为 {len(pieces)} 个切分结果分别提供名称。")
 
     old_topology = project.topology
     vertices = dict(old_topology.vertices)
@@ -177,7 +254,9 @@ def split_region_into_children(
     half_edges = dict(old_topology.half_edges)
     rings = dict(old_topology.rings)
     faces = dict(old_topology.faces)
-    vertex_by_coordinate = {(vertex.x, vertex.y): vertex.id for vertex in vertices.values()}
+    vertex_by_coordinate = {
+        (round(vertex.x, 12), round(vertex.y, 12)): vertex.id for vertex in vertices.values()
+    }
     edge_by_key: dict[tuple[tuple[float, float], tuple[float, float]], str] = {}
     for edge in edges.values():
         start = vertices[edge.start_vertex_id].point.as_tuple()
@@ -236,12 +315,11 @@ def split_region_into_children(
         faces=faces,
         geometry_version=old_topology.geometry_version + 1,
     )
-    child_level = project.hierarchy_levels[1]
     children = tuple(
         Region(
             name=name,
             type_name=type_name.strip(),
-            level_id=child_level.id,
+            level_id=preview.child_level.id,
             parent_id=parent.id,
             face_ids=(face_id,),
             status=RegionStatus.VALID,

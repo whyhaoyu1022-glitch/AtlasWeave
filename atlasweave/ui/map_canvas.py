@@ -17,8 +17,8 @@ class MapCanvas(QWidget):
     """Render a project world and provide deterministic navigation primitives.
 
     The canvas keeps navigation state in screen pixels and derives the world
-    transform from the project dimensions.  It intentionally does not own
-    domain objects or create regions; drawing commands are introduced in M3.
+    transform from the project dimensions. It intentionally does not own
+    domain objects; commands receive completed world-coordinate drafts.
     """
 
     coordinate_changed = pyqtSignal(float, float, bool)
@@ -68,6 +68,7 @@ class MapCanvas(QWidget):
         self._split_cursor: QPointF | None = None
         self._split_dragging = False
         self._split_last_screen: QPointF | None = None
+        self._split_preview: tuple[tuple[QPointF, ...], ...] = ()
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -184,13 +185,25 @@ class MapCanvas(QWidget):
         self.update()
 
     def cancel_split(self) -> None:
-        if self._split_points or self._split_cursor is not None:
+        if self._split_points or self._split_cursor is not None or self._split_preview:
             self._split_points.clear()
             self._split_cursor = None
             self._split_dragging = False
             self._split_last_screen = None
+            self._split_preview = ()
             self.split_changed.emit(())
             self.update()
+
+    def set_split_preview(self, polygons) -> None:
+        """Render temporary result faces without changing the project model."""
+        converted: list[tuple[QPointF, ...]] = []
+        for polygon in polygons:
+            coordinates = polygon.exterior.coords if hasattr(polygon, "exterior") else polygon
+            points = tuple(QPointF(float(x), float(y)) for x, y in coordinates)
+            if len(points) >= 4:
+                converted.append(points)
+        self._split_preview = tuple(converted)
+        self.update()
 
     def finish_split(self) -> bool:
         if len(self._split_points) < 2:
@@ -414,6 +427,13 @@ class MapCanvas(QWidget):
             for path in record["paths"]:
                 screen_path = self._screen_path(path)
                 painter.drawPath(screen_path)
+
+        if self._split_preview:
+            preview_colors = (QColor(37, 99, 235, 70), QColor(16, 185, 129, 70))
+            painter.setPen(QPen(QColor("#1D4ED8"), 2.0, Qt.PenStyle.DashLine))
+            for index, polygon in enumerate(self._split_preview):
+                painter.setBrush(QBrush(preview_colors[index % len(preview_colors)]))
+                painter.drawPolygon(QPolygonF([self.world_to_screen(point) for point in polygon]))
 
         if self._draft_points:
             draft = QPolygonF([self.world_to_screen(point) for point in self._draft_points])

@@ -6,6 +6,7 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
     polygon_from_freehand,
+    preview_region_split,
     split_region_into_children,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
@@ -87,3 +88,74 @@ def test_split_region_creates_children_with_shared_edge():
     ) == pytest.approx(6400)
     edge_uses = split_project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
     assert any(len(uses) == 2 for uses in edge_uses.values())
+
+
+def test_split_preview_supports_multiple_pieces_and_next_level():
+    project = Project(
+        name="多段切分测试",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    u_shape = Polygon(
+        ((0, 0), (100, 0), (100, 100), (60, 100), (60, 40), (40, 40), (40, 100), (0, 100))
+    )
+    project, parent = create_top_level_region(project, u_shape, "国家", "国家")
+    cut = [QPointF(-10, 30), QPointF(110, 70), QPointF(-10, 90)]
+
+    preview = preview_region_split(project, parent.id, cut)
+    assert len(preview.pieces) == 5
+    assert preview.total_area == pytest.approx(u_shape.area)
+    split_project, children = split_region_into_children(
+        project, parent.id, cut, tuple(f"省{i}" for i in range(1, 6)), "省"
+    )
+
+    assert len(children) == 5
+    assert all(child.level_id == project.hierarchy_levels[1].id for child in children)
+    assert all(child.parent_id == parent.id for child in children)
+    edge_uses = split_project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    assert sum(len(uses) == 2 for uses in edge_uses.values()) >= 4
+
+
+def test_split_child_uses_next_level_and_rejects_existing_children():
+    project = Project(
+        name="层级切分测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((10, 10), (90, 10), (90, 90), (10, 90))), "国家", "国家"
+    )
+    project, provinces = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+
+    project, cities = split_region_into_children(
+        project,
+        provinces[0].id,
+        [QPointF(0, 30), QPointF(100, 30)],
+        ("北市", "南市"),
+        "市",
+    )
+    assert all(city.level_id == project.hierarchy_levels[2].id for city in cities)
+    with pytest.raises(RegionCommandError, match="不可见|已经包含子区域"):
+        split_region_into_children(
+            project,
+            provinces[0].id,
+            [QPointF(0, 20), QPointF(100, 20)],
+            ("重复市一", "重复市二"),
+            "市",
+        )

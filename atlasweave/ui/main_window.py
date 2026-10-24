@@ -50,6 +50,7 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
     polygon_from_freehand,
+    preview_region_split,
     split_region_into_children,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
@@ -341,17 +342,34 @@ class RegionCreateDialog(QDialog):
 
 
 class RegionSplitDialog(QDialog):
-    """Collect names for the two child regions produced by a cut preview."""
+    """Show a cut summary and collect names for every resulting child region."""
 
-    def __init__(self, parent_name: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent_name: str,
+        parent: QWidget | None = None,
+        *,
+        piece_count: int = 2,
+        minimum_area: float | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"切分区域：{parent_name}")
-        self.first_name_edit = QLineEdit()
-        self.second_name_edit = QLineEdit()
+        self.setMinimumWidth(440)
+        self.piece_count = piece_count
+        self.name_edits = []
         self.type_edit = QLineEdit("省")
         form = QFormLayout(self)
-        form.addRow("第一个子区域", self.first_name_edit)
-        form.addRow("第二个子区域", self.second_name_edit)
+        summary = f"预览将创建 {piece_count} 个子区域"
+        if minimum_area is not None:
+            summary += f"；最小面积 {minimum_area:.6g} km²"
+        summary_label = QLabel(summary)
+        summary_label.setWordWrap(True)
+        form.addRow("切分预览", summary_label)
+        for index in range(piece_count):
+            edit = QLineEdit(f"{parent_name} - 新区域 {index + 1}")
+            edit.setObjectName(f"splitRegionNameEdit{index + 1}")
+            self.name_edits.append(edit)
+            form.addRow(f"第 {index + 1} 个子区域", edit)
         form.addRow("区域类型", self.type_edit)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -361,12 +379,12 @@ class RegionSplitDialog(QDialog):
         form.addRow(buttons)
 
     def _accept(self) -> None:
-        names = (self.first_name, self.second_name)
+        names = self.names
         if any(not name for name in names):
-            QMessageBox.warning(self, "名称不能为空", "请输入两个子区域名称。")
+            QMessageBox.warning(self, "名称不能为空", "请输入所有子区域名称。")
             return
-        if names[0] == names[1]:
-            QMessageBox.warning(self, "名称重复", "两个子区域名称不能重复。")
+        if len(set(names)) != len(names):
+            QMessageBox.warning(self, "名称重复", "子区域名称不能重复。")
             return
         if not self.type_name:
             QMessageBox.warning(self, "类型不能为空", "请输入子区域类型。")
@@ -374,12 +392,16 @@ class RegionSplitDialog(QDialog):
         self.accept()
 
     @property
+    def names(self) -> tuple[str, ...]:
+        return tuple(edit.text().strip() for edit in self.name_edits)
+
+    @property
     def first_name(self) -> str:
-        return self.first_name_edit.text().strip()
+        return self.names[0]
 
     @property
     def second_name(self) -> str:
-        return self.second_name_edit.text().strip()
+        return self.names[1]
 
     @property
     def type_name(self) -> str:
@@ -882,13 +904,25 @@ class MainWindow(QMainWindow):
             self.issue_panel.setPlainText("切分区域失败：请先选择一个父区域。")
             return
         parent = self.project.regions[selected[0]]
-        dialog = RegionSplitDialog(parent.name, self)
+        try:
+            preview = preview_region_split(self.project, selected[0], points)
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"切分预览失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        self.canvas.set_split_preview(preview.pieces)
+        dialog = RegionSplitDialog(
+            parent.name,
+            self,
+            piece_count=len(preview.pieces),
+            minimum_area=preview.minimum_area,
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self._commit_split(
             selected[0],
             points,
-            (dialog.first_name, dialog.second_name),
+            dialog.names,
             dialog.type_name,
         )
 
