@@ -14,6 +14,7 @@ from atlasweave.commands.region_commands import (
     preview_region_split,
     region_adjacency,
     split_region_into_children,
+    split_regions_in_batch,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
@@ -72,6 +73,7 @@ def test_split_region_creates_children_with_shared_edge():
         hierarchy_levels=(
             HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
             HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
         ),
     )
     project, parent = create_top_level_region(
@@ -167,6 +169,132 @@ def test_split_child_uses_next_level_and_rejects_existing_children():
         )
 
 
+def test_advanced_parent_resplit_hides_old_children_and_replaces_partition():
+    project = Project(
+        name="父级重切分",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, old_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("旧北", "旧南"),
+        "省",
+    )
+    after, new_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 30), QPointF(110, 30), QPointF(-10, 70)],
+        ("新一", "新二", "新三"),
+        "省",
+        allow_existing_children=True,
+    )
+    assert len(new_children) == 3
+    assert all(not after.regions[child.id].visible for child in old_children)
+    assert all(child.parent_id == parent.id for child in new_children)
+    assert sum(
+        after.topology.face_polygon(child.face_ids[0]).area for child in new_children
+    ) == pytest.approx(10000)
+
+
+def test_batch_split_applies_multiple_validated_steps_in_one_snapshot():
+    project = Project(
+        name="六区连续切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 60), (0, 60))), "国家", "国家"
+    )
+    first_project, first_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 10), QPointF(110, 10)],
+        ("一省", "余下"),
+        "省",
+    )
+    remaining = first_children[1]
+    batch_steps = ((remaining.id, [QPointF(-10, 20), QPointF(110, 20)], ("二省", "余下二")),)
+    after_batch, created = split_regions_in_batch(first_project, batch_steps, "省")
+    assert len(created) == 2
+    assert sum(
+        after_batch.topology.face_polygon(face_id).area
+        for region in after_batch.regions.values()
+        if region.visible
+        for face_id in region.face_ids
+    ) == pytest.approx(6000)
+    assert all(region.parent_id in after_batch.regions for region in created)
+
+
+def test_single_polyline_can_create_six_sibling_regions():
+    project = Project(
+        name="六区切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 60), (0, 60))), "国家", "国家"
+    )
+    ys = (8, 16, 24, 32, 40, 48)
+    cut = [QPointF(-10 if index % 2 == 0 else 110, y) for index, y in enumerate(ys)]
+    after, children = split_region_into_children(
+        project, parent.id, cut, tuple(f"省{i}" for i in range(1, 7)), "省"
+    )
+    assert len(children) == 6
+    assert sum(
+        after.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(6000)
+    edge_uses = after.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    assert sum(len(uses) == 2 for uses in edge_uses.values()) >= 5
+
+
+def test_split_multi_component_parent_preserves_all_components():
+    project = Project(
+        name="多部件重切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((5, 5), (35, 5), (35, 35), (5, 35))), "国家", "国家"
+    )
+    project, parent = add_region_component(
+        project, parent.id, Polygon(((65, 65), (95, 65), (95, 95), (65, 95)))
+    )
+    preview = preview_region_split(project, parent.id, [QPointF(-10, 20), QPointF(110, 20)])
+    assert len(preview.pieces) == 3
+    after, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 20), QPointF(110, 20)], ("甲", "乙", "飞地"), "省"
+    )
+    assert len(children) == 3
+    assert sum(
+        after.topology.face_polygon(face_id).area
+        for child in children
+        for face_id in child.face_ids
+    ) == pytest.approx(1800)
+
+
 def test_merge_adjacent_siblings_preserves_first_uuid_and_adjacency():
     project = Project(
         name="合并测试",
@@ -227,6 +355,32 @@ def test_merge_multiple_adjacent_siblings_into_one_region():
     assert merged.id == children[0].id
     assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(8800)
     assert all(not merged_project.regions[child.id].visible for child in children[1:])
+
+
+def test_merge_non_adjacent_siblings_creates_multi_component_region():
+    project = Project(
+        name="非相邻合并",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, first = create_top_level_region(
+        project, Polygon(((5, 5), (25, 5), (25, 25), (5, 25))), "甲", "省"
+    )
+    project, second = create_top_level_region(
+        project, Polygon(((65, 65), (85, 65), (85, 85), (65, 85))), "乙", "省"
+    )
+    merged_project, merged = merge_sibling_regions(project, [first.id, second.id], "甲乙")
+    assert merged.id == first.id
+    assert merged.name == "甲乙"
+    assert len(merged.face_ids) == 2
+    assert not merged_project.regions[second.id].visible
+    assert sum(
+        merged_project.topology.face_polygon(face_id).area for face_id in merged.face_ids
+    ) == pytest.approx(800)
 
 
 def test_add_region_component_preserves_one_region_node_and_faces():

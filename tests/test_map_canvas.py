@@ -1,7 +1,10 @@
 from math import isclose
 
 from PyQt6.QtCore import QPoint, QPointF, Qt
+from shapely.geometry import Polygon
 
+from atlasweave.commands.region_commands import create_top_level_region, split_region_into_children
+from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.domain.region import Region
 from atlasweave.domain.topology import Edge, Face, HalfEdge, Ring, Topology, Vertex
@@ -173,3 +176,51 @@ def test_freehand_mode_collects_stroke_and_emits_world_points(qtbot):
     assert len(completed[0]) == 4
     canvas.cancel_freehand()
     assert not canvas.freehand_points
+
+
+def test_vertex_mode_emits_shared_edge_insert_and_delete_requests(qtbot):
+    project = Project(
+        name="顶点入口",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    canvas = MapCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(800, 600)
+    canvas.set_world(100, 100)
+    canvas.set_regions(project.regions, project.topology)
+    canvas.set_selection([child.id for child in children])
+    canvas.set_vertex_mode(True)
+    inserted = []
+    deleted = []
+    canvas.vertex_insert_requested.connect(lambda edge_id, point: inserted.append((edge_id, point)))
+    canvas.vertex_delete_requested.connect(deleted.append)
+    shared_edge_id = next(
+        edge_id
+        for edge_id, uses in project.topology.edge_uses(
+            tuple(child.face_ids[0] for child in children)
+        ).items()
+        if len(uses) == 2
+    )
+    midpoint = canvas.world_to_screen(QPointF(50, 50)).toPoint()
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, midpoint)
+    assert inserted and inserted[0][0] == shared_edge_id
+    shared_vertex = next(
+        vertex.id
+        for vertex in project.topology.vertices.values()
+        if abs(vertex.x) < 1e-9 and abs(vertex.y - 50) < 1e-9
+    )
+    vertex_screen = canvas.world_to_screen(QPointF(0, 50)).toPoint()
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=vertex_screen)
+    qtbot.keyClick(canvas, Qt.Key.Key_Delete)
+    assert deleted == [shared_vertex]

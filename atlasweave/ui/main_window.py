@@ -11,6 +11,7 @@ from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence, QU
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDockWidget,
@@ -50,6 +51,8 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     add_region_component,
     create_top_level_region,
+    delete_simple_vertex,
+    insert_vertex_on_edge,
     merge_sibling_regions,
     move_shared_vertex,
     polygon_from_freehand,
@@ -413,6 +416,62 @@ class RegionSplitDialog(QDialog):
         return self.type_edit.text().strip()
 
 
+class RegionMergeDialog(QDialog):
+    """Collect the explicit metadata policy required for a merge."""
+
+    def __init__(self, regions, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("合并区域")
+        self.setMinimumWidth(460)
+        self.name_edit = QLineEdit(regions[0].name)
+        self.type_edit = QLineEdit(regions[0].type_name)
+        self.population_policy = QComboBox()
+        self.population_policy.addItem("求和（默认）", "sum")
+        self.population_policy.addItem("保留主区域", "primary")
+        self.population_policy.addItem("留空", "empty")
+        self.gdp_policy = QComboBox()
+        self.gdp_policy.addItem("求和（默认）", "sum")
+        self.gdp_policy.addItem("保留主区域", "primary")
+        self.gdp_policy.addItem("留空", "empty")
+        form = QFormLayout(self)
+        names = "、".join(region.name for region in regions)
+        summary = QLabel(f"将合并：{names}\n相邻区域生成联合面，不相邻区域保留为多个部件。")
+        summary.setWordWrap(True)
+        form.addRow("合并预览", summary)
+        form.addRow("主区域名称", self.name_edit)
+        form.addRow("行政类型", self.type_edit)
+        form.addRow("人口", self.population_policy)
+        form.addRow("GDP", self.gdp_policy)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _accept(self) -> None:
+        if not self.name_edit.text().strip() or not self.type_edit.text().strip():
+            QMessageBox.warning(self, "字段不能为空", "请输入合并后的名称和行政类型。")
+            return
+        self.accept()
+
+    @property
+    def merged_name(self) -> str:
+        return self.name_edit.text().strip()
+
+    @property
+    def merged_type(self) -> str:
+        return self.type_edit.text().strip()
+
+    @property
+    def population_mode(self) -> str:
+        return str(self.population_policy.currentData())
+
+    @property
+    def gdp_mode(self) -> str:
+        return str(self.gdp_policy.currentData())
+
+
 class WelcomePage(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -470,6 +529,8 @@ class MainWindow(QMainWindow):
         self.canvas.freehand_completed.connect(self._freehand_completed)
         self.canvas.split_completed.connect(self._split_completed)
         self.canvas.vertex_drag_completed.connect(self._vertex_drag_completed)
+        self.canvas.vertex_insert_requested.connect(self._vertex_insert_requested)
+        self.canvas.vertex_delete_requested.connect(self._vertex_delete_requested)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -713,7 +774,7 @@ class MainWindow(QMainWindow):
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
-        self.merge_action = QAction("合并相邻区域", self)
+        self.merge_action = QAction("合并同级区域", self)
         self.merge_action.setShortcut(QKeySequence("Ctrl+M"))
         self.merge_action.triggered.connect(self._merge_selected)
         edit_menu.addAction(self.merge_action)
@@ -773,6 +834,11 @@ class MainWindow(QMainWindow):
         self.split_action.setShortcut(QKeySequence("S"))
         self.split_action.toggled.connect(self._set_split_mode)
         view_menu.addAction(self.split_action)
+        self.resplit_action = QAction("高级：重新切分父级", self)
+        self.resplit_action.setCheckable(True)
+        self.resplit_action.setShortcut(QKeySequence("Shift+S"))
+        self.resplit_action.toggled.connect(self._set_resplit_mode)
+        edit_menu.addAction(self.resplit_action)
         self._create_panel_actions(view_menu)
 
         self.navigation_toolbar = QToolBar("地图导航", self)
@@ -826,6 +892,7 @@ class MainWindow(QMainWindow):
         self.draw_action.setChecked(False)
         self.freehand_action.setChecked(False)
         self.split_action.setChecked(False)
+        self.resplit_action.setChecked(False)
         self.canvas.clear_regions()
         self.pan_action.setChecked(False)
         self.coordinate_status.setText("X —  Y —")
@@ -875,7 +942,15 @@ class MainWindow(QMainWindow):
         self.component_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 1)
         self.vertex_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
         self.split_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
-        self.merge_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 2)
+        selected = tuple(self.canvas.selected_region_ids)
+        self.resplit_action.setEnabled(
+            writable
+            and len(selected) == 1
+            and selected[0] in self.project.regions
+            and not self.project.regions[selected[0]].visible
+            and any(region.parent_id == selected[0] for region in self.project.regions.values())
+        )
+        self.merge_action.setEnabled(writable and len(self.canvas.selected_region_ids) >= 2)
 
     def _set_draw_mode(self, enabled: bool) -> None:
         if enabled and (self.project is None or self.read_only):
@@ -885,6 +960,7 @@ class MainWindow(QMainWindow):
             self.pan_action.setChecked(False)
             self.freehand_action.setChecked(False)
             self.split_action.setChecked(False)
+            self.resplit_action.setChecked(False)
             self.statusBar().showMessage(
                 "绘制区域：单击添加顶点，点击首点闭合；右键/Backspace 删除最后一点，Esc 取消"
             )
@@ -901,6 +977,7 @@ class MainWindow(QMainWindow):
             self.draw_action.setChecked(False)
             self.component_action.setChecked(False)
             self.split_action.setChecked(False)
+            self.resplit_action.setChecked(False)
             self.statusBar().showMessage("自由手绘：按住鼠标左键拖动勾勒区域，松开完成；Esc 取消")
         else:
             self.canvas.cancel_freehand()
@@ -918,6 +995,7 @@ class MainWindow(QMainWindow):
             self.draw_action.setChecked(False)
             self.freehand_action.setChecked(False)
             self.split_action.setChecked(False)
+            self.resplit_action.setChecked(False)
             self.statusBar().showMessage(
                 "添加区域部件：按住鼠标左键绘制岛屿或飞地，松开确认；Esc 取消"
             )
@@ -938,6 +1016,7 @@ class MainWindow(QMainWindow):
             self.freehand_action.setChecked(False)
             self.component_action.setChecked(False)
             self.split_action.setChecked(False)
+            self.resplit_action.setChecked(False)
             self.statusBar().showMessage("顶点编辑：拖动橙色顶点，右键取消当前拖动")
         self.canvas.set_vertex_mode(enabled)
 
@@ -957,6 +1036,40 @@ class MainWindow(QMainWindow):
         )
         self.statusBar().showMessage("已移动共享顶点（可撤销）", 4000)
 
+    def _vertex_insert_requested(self, edge_id: str, point) -> None:
+        if self.project is None or self.read_only:
+            return
+        before = self.project
+        try:
+            after = insert_vertex_on_edge(
+                before, edge_id, Point(float(point.x()), float(point.y()))
+            )
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"插入共享顶点失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        selected = self.canvas.selected_region_ids
+        self.undo_stack.push(
+            ProjectSnapshotCommand(self, before, after, selected, selected, "插入共享顶点")
+        )
+        self.statusBar().showMessage("已插入共享顶点（可撤销，按 V 后可拖动）", 4000)
+
+    def _vertex_delete_requested(self, vertex_id: str) -> None:
+        if self.project is None or self.read_only:
+            return
+        before = self.project
+        try:
+            after = delete_simple_vertex(before, vertex_id)
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"删除共享顶点失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        selected = self.canvas.selected_region_ids
+        self.undo_stack.push(
+            ProjectSnapshotCommand(self, before, after, selected, selected, "删除共享顶点")
+        )
+        self.statusBar().showMessage("已删除共享顶点（可撤销）", 4000)
+
     def _set_split_mode(self, enabled: bool) -> None:
         if enabled and (
             self.project is None or self.read_only or len(self.canvas.selected_region_ids) != 1
@@ -968,7 +1081,34 @@ class MainWindow(QMainWindow):
             self.pan_action.setChecked(False)
             self.draw_action.setChecked(False)
             self.freehand_action.setChecked(False)
+            self.resplit_action.setChecked(False)
             self.statusBar().showMessage("切分区域：按住左键拖过父区域，松开预览切分；Esc 取消")
+        else:
+            self.canvas.cancel_split()
+        self.canvas.set_split_mode(enabled)
+
+    def _set_resplit_mode(self, enabled: bool) -> None:
+        if enabled and (
+            self.project is None
+            or self.read_only
+            or len(self.canvas.selected_region_ids) != 1
+            or self.project.regions[next(iter(self.canvas.selected_region_ids))].visible
+            or not any(
+                region.parent_id == next(iter(self.canvas.selected_region_ids))
+                for region in self.project.regions.values()
+            )
+        ):
+            self.resplit_action.setChecked(False)
+            self.statusBar().showMessage("请先从区划树选择一个已有子区域的父级。", 4000)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.draw_action.setChecked(False)
+            self.freehand_action.setChecked(False)
+            self.component_action.setChecked(False)
+            self.vertex_action.setChecked(False)
+            self.split_action.setChecked(False)
+            self.statusBar().showMessage("高级重新切分：将替换旧子区域，确认前不会修改工程")
         else:
             self.canvas.cancel_split()
         self.canvas.set_split_mode(enabled)
@@ -982,7 +1122,12 @@ class MainWindow(QMainWindow):
             return
         parent = self.project.regions[selected[0]]
         try:
-            preview = preview_region_split(self.project, selected[0], points)
+            preview = preview_region_split(
+                self.project,
+                selected[0],
+                points,
+                allow_existing_children=self.resplit_action.isChecked(),
+            )
         except RegionCommandError as exc:
             self.issue_panel.setPlainText(f"切分预览失败：\n{exc}")
             self.statusBar().showMessage(str(exc), 5000)
@@ -1001,16 +1146,24 @@ class MainWindow(QMainWindow):
             points,
             dialog.names,
             dialog.type_name,
+            allow_existing_children=self.resplit_action.isChecked(),
         )
 
-    def _commit_split(self, region_id, points, names, type_name: str) -> None:
+    def _commit_split(
+        self, region_id, points, names, type_name: str, *, allow_existing_children: bool = False
+    ) -> None:
         if self.project is None:
             return
         before_project = self.project
         before_selection = self.canvas.selected_region_ids
         try:
             after_project, children = split_region_into_children(
-                self.project, region_id, points, names, type_name
+                self.project,
+                region_id,
+                points,
+                names,
+                type_name,
+                allow_existing_children=allow_existing_children,
             )
         except RegionCommandError as exc:
             self.issue_panel.setPlainText(f"切分区域失败：\n{exc}")
@@ -1028,17 +1181,30 @@ class MainWindow(QMainWindow):
         )
         self.canvas.cancel_split()
         self.split_action.setChecked(False)
+        self.resplit_action.setChecked(False)
         self.statusBar().showMessage("已切分区域（可撤销）", 5000)
 
     def _merge_selected(self) -> None:
         if self.project is None or self.read_only:
             return
         selected = tuple(self.canvas.selected_region_ids)
-        if len(selected) != 2:
-            self.statusBar().showMessage("请先选择两个相邻的同级区域。", 4000)
+        if len(selected) < 2:
+            self.statusBar().showMessage("请先选择至少两个同级区域。", 4000)
+            return
+        dialog = RegionMergeDialog(
+            [self.project.regions[region_id] for region_id in selected], self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            merged_project, merged = merge_sibling_regions(self.project, selected)
+            merged_project, merged = merge_sibling_regions(
+                self.project,
+                selected,
+                dialog.merged_name,
+                dialog.merged_type,
+                dialog.population_mode,
+                dialog.gdp_mode,
+            )
         except RegionCommandError as exc:
             self.issue_panel.setPlainText(f"合并区域失败：\n{exc}")
             self.statusBar().showMessage(str(exc), 5000)

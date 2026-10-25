@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from math import hypot
 
 from shapely.errors import GEOSException
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry.polygon import orient
 from shapely.ops import split as split_geometry
@@ -41,6 +41,89 @@ class SplitPreview:
     @property
     def total_area(self) -> float:
         return sum(piece.area for piece in self.pieces)
+
+
+def _topology_with_polygons(topology, geometries: Sequence[Polygon]):
+    """Append polygon faces while reusing vertices and shared edges."""
+    vertices = dict(topology.vertices)
+    edges = dict(topology.edges)
+    half_edges = dict(topology.half_edges)
+    rings = dict(topology.rings)
+    faces = dict(topology.faces)
+    vertex_by_coordinate = {
+        (round(vertex.x, 12), round(vertex.y, 12)): vertex.id for vertex in vertices.values()
+    }
+    edge_by_key: dict[tuple[tuple[float, float], tuple[float, float]], str] = {}
+    for edge in edges.values():
+        start = vertices[edge.start_vertex_id].point.as_tuple()
+        end = vertices[edge.end_vertex_id].point.as_tuple()
+        edge_by_key[tuple(sorted((start, end)))] = edge.id
+
+    def vertex_id(coordinate: tuple[float, float]) -> str:
+        coordinate = (round(coordinate[0], 12), round(coordinate[1], 12))
+        if coordinate not in vertex_by_coordinate:
+            vertex = Vertex(x=coordinate[0], y=coordinate[1])
+            vertices[vertex.id] = vertex
+            vertex_by_coordinate[coordinate] = vertex.id
+        return vertex_by_coordinate[coordinate]
+
+    def add_ring(coordinates) -> str:
+        points = list(coordinates)[:-1]
+        if len(points) < 3:
+            raise RegionCommandError("结果环至少需要三个顶点。")
+        half_ids: list[str] = []
+        for index, start in enumerate(points):
+            end = points[(index + 1) % len(points)]
+            start_key = (round(start[0], 12), round(start[1], 12))
+            end_key = (round(end[0], 12), round(end[1], 12))
+            edge_key = tuple(sorted((start_key, end_key)))
+            start_vertex = vertex_id(start_key)
+            end_vertex = vertex_id(end_key)
+            edge_id = edge_by_key.get(edge_key)
+            if edge_id is None:
+                edge = Edge(start_vertex_id=start_vertex, end_vertex_id=end_vertex)
+                edges[edge.id] = edge
+                edge_by_key[edge_key] = edge.id
+            else:
+                edge = edges[edge_id]
+                if (edge.start_vertex_id, edge.end_vertex_id) == (start_vertex, end_vertex):
+                    pass
+                elif (edge.start_vertex_id, edge.end_vertex_id) == (end_vertex, start_vertex):
+                    pass
+                else:
+                    raise RegionCommandError("结果无法建立共享边拓扑。")
+            reversed_edge = (
+                edge.start_vertex_id == end_vertex and edge.end_vertex_id == start_vertex
+            )
+            half = HalfEdge(edge_id=edge.id, reversed=reversed_edge)
+            half_edges[half.id] = half
+            half_ids.append(half.id)
+        ring = Ring(half_edge_ids=tuple(half_ids))
+        rings[ring.id] = ring
+        return ring.id
+
+    face_ids: list[str] = []
+    for geometry in geometries:
+        if not isinstance(geometry, Polygon) or not geometry.is_valid:
+            raise RegionCommandError("结果包含无效面。")
+        oriented = orient(geometry, sign=1.0)
+        outer_ring_id = add_ring(oriented.exterior.coords)
+        inner_ring_ids = tuple(add_ring(ring.coords) for ring in oriented.interiors)
+        face = Face(outer_ring_id=outer_ring_id, inner_ring_ids=inner_ring_ids)
+        faces[face.id] = face
+        face_ids.append(face.id)
+    return (
+        replace(
+            topology,
+            vertices=vertices,
+            edges=edges,
+            half_edges=half_edges,
+            rings=rings,
+            faces=faces,
+            geometry_version=topology.geometry_version + 1,
+        ),
+        tuple(face_ids),
+    )
 
 
 def polygon_from_freehand(points, *, tolerance: float) -> Polygon:
@@ -153,18 +236,21 @@ def _point_coordinate(point) -> tuple[float, float]:
     return float(x), float(y)
 
 
-def _split_target(project: Project, region_id: str) -> tuple[Region, Polygon, HierarchyLevel]:
+def _split_target(
+    project: Project, region_id: str, *, allow_existing_children: bool = False
+) -> tuple[Region, Polygon | MultiPolygon, HierarchyLevel]:
     if region_id not in project.regions:
         raise RegionCommandError("请选择要切分的区域。")
     parent = project.regions[region_id]
     if parent.locked:
         raise RegionCommandError(f"区域“{parent.name}”已锁定，不能切分。")
-    if not parent.visible:
+    if not parent.visible and not allow_existing_children:
         raise RegionCommandError(f"区域“{parent.name}”当前不可见，不能重复切分。")
-    if any(region.parent_id == parent.id for region in project.regions.values()):
+    if (
+        any(region.parent_id == parent.id for region in project.regions.values())
+        and not allow_existing_children
+    ):
         raise RegionCommandError("该区域已经包含子区域；请先完成子区域处理后再切分。")
-    if len(parent.face_ids) != 1:
-        raise RegionCommandError("本批切分只支持没有飞地的单面区域。")
     levels_by_id = {level.id: level for level in project.hierarchy_levels}
     parent_level = levels_by_id.get(parent.level_id)
     if parent_level is None:
@@ -180,17 +266,34 @@ def _split_target(project: Project, region_id: str) -> tuple[Region, Polygon, Hi
     if not child_levels:
         raise RegionCommandError("没有比当前区域更低的可用行政层级。")
     try:
-        parent_polygon = project.topology.face_polygon(parent.face_ids[0])
+        parent_polygon = unary_union(
+            [project.topology.face_polygon(face_id) for face_id in parent.face_ids]
+        )
     except (KeyError, ValueError, GEOSException) as exc:
         raise RegionCommandError(f"父区域几何无法验证：{exc}") from exc
-    if not parent_polygon.is_valid or len(parent_polygon.interiors):
-        raise RegionCommandError("本批切分要求父区域是无洞的有效单面多边形。")
+    if not parent_polygon.is_valid or not isinstance(parent_polygon, (Polygon, MultiPolygon)):
+        raise RegionCommandError("父区域必须是有效的多部件面。")
+    parts = (
+        tuple(parent_polygon.geoms)
+        if isinstance(parent_polygon, MultiPolygon)
+        else (parent_polygon,)
+    )
+    if any(len(part.interiors) for part in parts):
+        raise RegionCommandError("父区域暂不支持带洞面切分。")
     return parent, parent_polygon, child_levels[0]
 
 
-def preview_region_split(project: Project, region_id: str, cut_points) -> SplitPreview:
+def preview_region_split(
+    project: Project,
+    region_id: str,
+    cut_points,
+    *,
+    allow_existing_children: bool = False,
+) -> SplitPreview:
     """Compute valid split pieces without changing the project snapshot."""
-    parent, parent_polygon, child_level = _split_target(project, region_id)
+    parent, parent_polygon, child_level = _split_target(
+        project, region_id, allow_existing_children=allow_existing_children
+    )
     coordinates = [_point_coordinate(point) for point in cut_points]
     deduped: list[tuple[float, float]] = []
     for coordinate in coordinates:
@@ -228,12 +331,42 @@ def preview_region_split(project: Project, region_id: str, cut_points) -> SplitP
     return SplitPreview(region_id=parent.id, child_level=child_level, pieces=pieces)
 
 
+def split_regions_in_batch(
+    project: Project,
+    steps: Sequence[tuple[str, Sequence, Sequence[str]]],
+    type_name: str,
+) -> tuple[Project, tuple[Region, ...]]:
+    """Apply several real child splits as one validated, undoable batch.
+
+    Each step is ``(parent_region_id, cut_points, child_names)``.  The helper
+    deliberately reuses :func:`split_region_into_children` for every step, so
+    each intermediate snapshot receives the same geometry, hierarchy and
+    naming validation as an interactive split.  Callers can wrap the returned
+    before/after snapshots in one ``ProjectSnapshotCommand``.
+    """
+    if not steps:
+        raise RegionCommandError("连续切分至少需要一个步骤。")
+    current = project
+    created: list[Region] = []
+    for step in steps:
+        if len(step) != 3:
+            raise RegionCommandError("连续切分步骤必须包含父区域、切分线和子区域名称。")
+        region_id, cut_points, child_names = step
+        current, children = split_region_into_children(
+            current, region_id, cut_points, child_names, type_name
+        )
+        created.extend(children)
+    return current, tuple(created)
+
+
 def split_region_into_children(
     project: Project,
     region_id: str,
     cut_points,
     child_names: Sequence[str],
     type_name: str,
+    *,
+    allow_existing_children: bool = False,
 ) -> tuple[Project, tuple[Region, ...]]:
     """Split one simple face into two or more real child regions with shared edges."""
     parent = project.regions.get(region_id)
@@ -246,7 +379,9 @@ def split_region_into_children(
         raise RegionCommandError("子区域名称不能重复。")
     if not type_name.strip():
         raise RegionCommandError("子区域类型不能为空。")
-    preview = preview_region_split(project, region_id, cut_points)
+    preview = preview_region_split(
+        project, region_id, cut_points, allow_existing_children=allow_existing_children
+    )
     pieces = preview.pieces
     if len(names) != len(pieces):
         raise RegionCommandError(f"请为 {len(pieces)} 个切分结果分别提供名称。")
@@ -330,12 +465,18 @@ def split_region_into_children(
         for name, face_id in zip(names, child_face_ids, strict=True)
     )
     updated_parent = replace(parent, visible=False)
+    old_children = {
+        region.id: replace(region, visible=False)
+        for region in project.regions.values()
+        if allow_existing_children and region.parent_id == parent.id
+    }
     return (
         replace(
             project,
             regions={
                 **project.regions,
                 parent.id: updated_parent,
+                **old_children,
                 **{child.id: child for child in children},
             },
             topology=topology,
@@ -349,6 +490,9 @@ def merge_sibling_regions(
     project: Project,
     region_ids: Sequence[str],
     merged_name: str | None = None,
+    merged_type: str | None = None,
+    population_policy: str = "sum",
+    gdp_policy: str = "sum",
 ) -> tuple[Project, Region]:
     """Merge two or more adjacent simple siblings while retaining the first UUID."""
     ids = tuple(dict.fromkeys(region_ids))
@@ -369,86 +513,43 @@ def merge_sibling_regions(
         child.parent_id in ids for child in project.regions.values() if child.parent_id is not None
     ):
         raise RegionCommandError("包含子区域的区域不能直接合并。")
-    if any(len(region.face_ids) != 1 for region in regions):
-        raise RegionCommandError("本批合并只支持简单单面区域。")
     try:
-        polygons = tuple(project.topology.face_polygon(region.face_ids[0]) for region in regions)
+        polygons = tuple(
+            project.topology.face_polygon(face_id)
+            for region in regions
+            for face_id in region.face_ids
+        )
     except (KeyError, ValueError, GEOSException) as exc:
         raise RegionCommandError(f"区域几何无法验证：{exc}") from exc
-    shared_length = sum(
-        polygons[index].boundary.intersection(polygons[other].boundary).length
-        for index in range(len(polygons))
-        for other in range(index + 1, len(polygons))
-    )
-    if shared_length <= project.tolerances.minimum_edge_length:
-        raise RegionCommandError("所选区域没有可合并的共享边。")
     merged = unary_union(polygons)
-    if not isinstance(merged, Polygon) or not merged.is_valid or len(merged.interiors):
-        raise RegionCommandError("合并结果不是无洞的有效单面区域。")
+    if not isinstance(merged, (Polygon, MultiPolygon)) or not merged.is_valid:
+        raise RegionCommandError("合并结果不是有效区域几何。")
+    merged_parts = tuple(merged.geoms) if isinstance(merged, MultiPolygon) else (merged,)
+    if any(part.area <= project.tolerances.minimum_face_area for part in merged_parts):
+        raise RegionCommandError("合并结果包含小于工程容差的部件。")
+    topology, merged_face_ids = _topology_with_polygons(project.topology, merged_parts)
+    if population_policy not in {"sum", "primary", "empty"}:
+        raise RegionCommandError("人口合并策略无效。")
+    if gdp_policy not in {"sum", "primary", "empty"}:
+        raise RegionCommandError("GDP 合并策略无效。")
 
-    vertices = dict(project.topology.vertices)
-    edges = dict(project.topology.edges)
-    half_edges = dict(project.topology.half_edges)
-    rings = dict(project.topology.rings)
-    faces = dict(project.topology.faces)
-    vertex_by_coordinate = {
-        (round(vertex.x, 12), round(vertex.y, 12)): vertex.id for vertex in vertices.values()
-    }
-    edge_by_key: dict[tuple[tuple[float, float], tuple[float, float]], str] = {}
-    for edge in edges.values():
-        start = vertices[edge.start_vertex_id].point.as_tuple()
-        end = vertices[edge.end_vertex_id].point.as_tuple()
-        edge_by_key[tuple(sorted((start, end)))] = edge.id
+    def combine(values, policy):
+        if policy == "empty":
+            return None
+        if policy == "primary":
+            return values[0]
+        present = [value for value in values if value is not None]
+        return sum(present) if present else None
 
-    def vertex_id(coordinate: tuple[float, float]) -> str:
-        coordinate = (round(coordinate[0], 12), round(coordinate[1], 12))
-        if coordinate not in vertex_by_coordinate:
-            vertex = Vertex(x=coordinate[0], y=coordinate[1])
-            vertices[vertex.id] = vertex
-            vertex_by_coordinate[coordinate] = vertex.id
-        return vertex_by_coordinate[coordinate]
-
-    points = list(orient(merged, sign=1.0).exterior.coords)[:-1]
-    half_ids: list[str] = []
-    for index, start in enumerate(points):
-        end = points[(index + 1) % len(points)]
-        start_key = (round(start[0], 12), round(start[1], 12))
-        end_key = (round(end[0], 12), round(end[1], 12))
-        edge_key = tuple(sorted((start_key, end_key)))
-        start_vertex = vertex_id(start_key)
-        end_vertex = vertex_id(end_key)
-        edge_id = edge_by_key.get(edge_key)
-        if edge_id is None:
-            edge = Edge(start_vertex_id=start_vertex, end_vertex_id=end_vertex)
-            edges[edge.id] = edge
-            edge_by_key[edge_key] = edge.id
-        else:
-            edge = edges[edge_id]
-        reversed_edge = edge.start_vertex_id == end_vertex and edge.end_vertex_id == start_vertex
-        if not reversed_edge and (
-            edge.start_vertex_id != start_vertex or edge.end_vertex_id != end_vertex
-        ):
-            raise RegionCommandError("合并结果无法建立共享边拓扑。")
-        half = HalfEdge(edge_id=edge.id, reversed=reversed_edge)
-        half_edges[half.id] = half
-        half_ids.append(half.id)
-    ring = Ring(half_edge_ids=tuple(half_ids))
-    face = Face(outer_ring_id=ring.id)
-    rings[ring.id] = ring
-    faces[face.id] = face
-    topology = replace(
-        project.topology,
-        vertices=vertices,
-        edges=edges,
-        half_edges=half_edges,
-        rings=rings,
-        faces=faces,
-        geometry_version=project.topology.geometry_version + 1,
-    )
+    merged_population = combine(tuple(region.population for region in regions), population_policy)
+    merged_gdp = combine(tuple(region.gdp for region in regions), gdp_policy)
     updated_first = replace(
         first,
         name=(merged_name or first.name).strip() or first.name,
-        face_ids=(face.id,),
+        type_name=(merged_type or first.type_name).strip() or first.type_name,
+        population=merged_population,
+        gdp=merged_gdp,
+        face_ids=merged_face_ids,
     )
     updated_regions = {**project.regions, first.id: updated_first}
     updated_regions.update({region.id: replace(region, visible=False) for region in regions[1:]})

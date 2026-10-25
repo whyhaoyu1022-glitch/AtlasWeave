@@ -31,6 +31,8 @@ class MapCanvas(QWidget):
     split_changed = pyqtSignal(object)
     split_completed = pyqtSignal(object)
     vertex_drag_completed = pyqtSignal(str, object)
+    vertex_insert_requested = pyqtSignal(str, object)
+    vertex_delete_requested = pyqtSignal(str)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -73,6 +75,7 @@ class MapCanvas(QWidget):
         self._vertex_mode = False
         self._vertex_drag_id: str | None = None
         self._vertex_drag_point: QPointF | None = None
+        self._vertex_selected_id: str | None = None
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -196,6 +199,8 @@ class MapCanvas(QWidget):
         self._vertex_mode = bool(enabled)
         self._vertex_drag_id = None
         self._vertex_drag_point = None
+        if not self._vertex_mode:
+            self._vertex_selected_id = None
         if self._vertex_mode:
             self._draw_mode = False
             self.set_freehand_mode(False)
@@ -370,6 +375,43 @@ class MapCanvas(QWidget):
                     for vertex in (topology.vertices[vertex_id],)
                 ),
             }
+        visible_face_ids = tuple(
+            face_id for item in regions.values() if item.visible for face_id in item.face_ids
+        )
+        shared_edge_ids = {
+            edge_id
+            for edge_id, uses in topology.edge_uses(visible_face_ids).items()
+            if len(uses) >= 2
+        }
+        for region_id, region in regions.items():
+            record_edges = []
+            for face_id in region.face_ids:
+                face = topology.faces.get(face_id)
+                if face is None:
+                    continue
+                for ring_id in (face.outer_ring_id, *face.inner_ring_ids):
+                    ring = topology.rings.get(ring_id)
+                    if ring is None:
+                        continue
+                    for half_id in ring.half_edge_ids:
+                        half = topology.half_edges.get(half_id)
+                        if half is None:
+                            continue
+                        edge = topology.edges.get(half.edge_id)
+                        if edge is None:
+                            continue
+                        start = topology.vertices[edge.start_vertex_id]
+                        end = topology.vertices[edge.end_vertex_id]
+                        record_edges.append(
+                            (
+                                edge.id,
+                                QPointF(start.x, start.y),
+                                QPointF(end.x, end.y),
+                                edge.id in shared_edge_ids,
+                            )
+                        )
+            if region_id in records:
+                records[region_id]["edges"] = tuple(record_edges)
         self._regions = records
         self._geometry_errors = errors
         self._selected_ids.intersection_update(records)
@@ -387,6 +429,36 @@ class MapCanvas(QWidget):
                 if distance <= 12:
                     candidates.append((distance, vertex_id, world_point))
         return min(candidates, default=None)
+
+    def _nearest_edge(self, point: QPointF):
+        """Return the nearest shared edge and projected world point."""
+        candidates = []
+        selected = self._selected_ids
+        for record in self._regions.values():
+            if selected and record["region"].id not in selected:
+                continue
+            for edge_id, start, end, shared in record.get("edges", ()):
+                if not shared:
+                    continue
+                a = self.world_to_screen(start)
+                b = self.world_to_screen(end)
+                dx, dy = b.x() - a.x(), b.y() - a.y()
+                length_sq = dx * dx + dy * dy
+                if length_sq <= 1e-12:
+                    continue
+                t = max(
+                    0.0,
+                    min(
+                        1.0,
+                        ((point.x() - a.x()) * dx + (point.y() - a.y()) * dy) / length_sq,
+                    ),
+                )
+                projected = QPointF(a.x() + t * dx, a.y() + t * dy)
+                distance = (projected - point).manhattanLength()
+                if distance <= 12:
+                    candidates.append((distance, edge_id, self.screen_to_world(projected)))
+        return min(candidates, default=None)
+
     def clear_regions(self) -> None:
         self._regions = {}
         self._geometry_errors = {}
@@ -521,8 +593,24 @@ class MapCanvas(QWidget):
             for record in self._regions.values():
                 if self._selected_ids and record["region"].id not in self._selected_ids:
                     continue
+                for _edge_id, start, end, shared in record.get("edges", ()):
+                    if not shared:
+                        continue
+                    painter.setPen(QPen(QColor("#059669"), 2.0, Qt.PenStyle.DashLine))
+                    painter.drawLine(self.world_to_screen(start), self.world_to_screen(end))
+                    midpoint = QPointF((start.x() + end.x()) / 2, (start.y() + end.y()) / 2)
+                    center = self.world_to_screen(midpoint)
+                    painter.drawLine(center - QPointF(4, 0), center + QPointF(4, 0))
+                    painter.drawLine(center - QPointF(0, 4), center + QPointF(0, 4))
+                    painter.setPen(QPen(QColor("#92400E"), 1.5))
                 for _vertex_id, world_point in record.get("vertices", ()):
-                    painter.drawEllipse(self.world_to_screen(world_point), 5.0, 5.0)
+                    center = self.world_to_screen(world_point)
+                    if _vertex_id == self._vertex_selected_id:
+                        painter.setBrush(QBrush(QColor("#DC2626")))
+                        painter.drawEllipse(center, 6.0, 6.0)
+                        painter.setBrush(QBrush(QColor("#F59E0B")))
+                    else:
+                        painter.drawEllipse(center, 5.0, 5.0)
             if self._vertex_drag_point is not None:
                 painter.setBrush(QBrush(QColor("#DC2626")))
                 painter.drawEllipse(self.world_to_screen(self._vertex_drag_point), 6.0, 6.0)
@@ -608,9 +696,17 @@ class MapCanvas(QWidget):
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
         if self._vertex_mode:
             if event.button() == Qt.MouseButton.LeftButton:
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    nearest_edge = self._nearest_edge(event.position())
+                    if nearest_edge is not None:
+                        _, edge_id, world_point = nearest_edge
+                        self.vertex_insert_requested.emit(edge_id, world_point)
+                    event.accept()
+                    return
                 nearest = self._nearest_vertex(event.position())
                 if nearest is not None:
                     _, self._vertex_drag_id, self._vertex_drag_point = nearest
+                    self._vertex_selected_id = self._vertex_drag_id
                     self.setFocus()
                 event.accept()
                 return
@@ -756,6 +852,19 @@ class MapCanvas(QWidget):
         event.accept()
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._vertex_mode:
+            if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+                if self._vertex_selected_id is not None:
+                    self.vertex_delete_requested.emit(self._vertex_selected_id)
+                event.accept()
+                return
+            if event.key() == Qt.Key.Key_Escape:
+                self._vertex_selected_id = None
+                self._vertex_drag_id = None
+                self._vertex_drag_point = None
+                self.update()
+                event.accept()
+                return
         if self._draw_mode:
             if event.key() == Qt.Key.Key_Escape:
                 self.cancel_drawing()
