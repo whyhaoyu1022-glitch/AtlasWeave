@@ -48,6 +48,7 @@ from atlasweave.app.settings import SettingsError, SettingsStore, WindowSettings
 from atlasweave.commands.project_commands import ProjectSnapshotCommand
 from atlasweave.commands.region_commands import (
     RegionCommandError,
+    add_region_component,
     create_top_level_region,
     merge_sibling_regions,
     polygon_from_freehand,
@@ -754,6 +755,11 @@ class MainWindow(QMainWindow):
         self.freehand_action.setShortcut(QKeySequence("F"))
         self.freehand_action.toggled.connect(self._set_freehand_mode)
         view_menu.addAction(self.freehand_action)
+        self.component_action = QAction("添加区域部件", self)
+        self.component_action.setCheckable(True)
+        self.component_action.setShortcut(QKeySequence("A"))
+        self.component_action.toggled.connect(self._set_component_mode)
+        view_menu.addAction(self.component_action)
         self.split_action = QAction("切分区域", self)
         self.split_action.setCheckable(True)
         self.split_action.setShortcut(QKeySequence("S"))
@@ -766,6 +772,7 @@ class MainWindow(QMainWindow):
         self.navigation_toolbar.addAction(self.pan_action)
         self.navigation_toolbar.addAction(self.draw_action)
         self.navigation_toolbar.addAction(self.freehand_action)
+        self.navigation_toolbar.addAction(self.component_action)
         self.navigation_toolbar.addAction(self.split_action)
         self.navigation_toolbar.addSeparator()
         self.navigation_toolbar.addAction(self.undo_action)
@@ -857,6 +864,7 @@ class MainWindow(QMainWindow):
         self.pan_action.setEnabled(has_project)
         self.draw_action.setEnabled(writable)
         self.freehand_action.setEnabled(writable)
+        self.component_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 1)
         self.split_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
         self.merge_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 2)
 
@@ -882,8 +890,28 @@ class MainWindow(QMainWindow):
         if enabled:
             self.pan_action.setChecked(False)
             self.draw_action.setChecked(False)
+            self.component_action.setChecked(False)
             self.split_action.setChecked(False)
             self.statusBar().showMessage("自由手绘：按住鼠标左键拖动勾勒区域，松开完成；Esc 取消")
+        else:
+            self.canvas.cancel_freehand()
+        self.canvas.set_freehand_mode(enabled)
+
+    def _set_component_mode(self, enabled: bool) -> None:
+        if enabled and (
+            self.project is None or self.read_only or len(self.canvas.selected_region_ids) != 1
+        ):
+            self.component_action.setChecked(False)
+            self.statusBar().showMessage("请先选择一个可写的区域。", 4000)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.draw_action.setChecked(False)
+            self.freehand_action.setChecked(False)
+            self.split_action.setChecked(False)
+            self.statusBar().showMessage(
+                "添加区域部件：按住鼠标左键绘制岛屿或飞地，松开确认；Esc 取消"
+            )
         else:
             self.canvas.cancel_freehand()
         self.canvas.set_freehand_mode(enabled)
@@ -1015,6 +1043,30 @@ class MainWindow(QMainWindow):
         if error:
             self.issue_panel.setPlainText(f"自由手绘无法创建：\n{error}")
             self.statusBar().showMessage(error, 5000)
+            return
+        if self.component_action.isChecked() and len(self.canvas.selected_region_ids) == 1:
+            try:
+                after_project, updated = add_region_component(
+                    self.project, tuple(self.canvas.selected_region_ids)[0], polygon
+                )
+            except RegionCommandError as exc:
+                self.issue_panel.setPlainText(f"添加区域部件失败：\n{exc}")
+                self.statusBar().showMessage(str(exc), 5000)
+                return
+            before_selection = self.canvas.selected_region_ids
+            self.undo_stack.push(
+                ProjectSnapshotCommand(
+                    self,
+                    self.project,
+                    after_project,
+                    before_selection,
+                    (updated.id,),
+                    f"添加区域部件：{updated.name}",
+                )
+            )
+            self.canvas.cancel_freehand()
+            self.component_action.setChecked(False)
+            self.statusBar().showMessage("已添加区域部件（可撤销）", 5000)
             return
         dialog = RegionCreateDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
