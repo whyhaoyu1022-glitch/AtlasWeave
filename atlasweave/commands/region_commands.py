@@ -716,3 +716,118 @@ def insert_vertex_on_edge(project: Project, edge_id: str, point: Point) -> Proje
             if not polygon.is_valid or polygon.area <= project.tolerances.minimum_face_area:
                 raise RegionCommandError("插入顶点会造成无效几何。")
     return candidate
+
+
+def delete_simple_vertex(project: Project, vertex_id: str) -> Project:
+    """Delete a degree-two non-junction vertex and merge its two edges."""
+    if vertex_id not in project.topology.vertices:
+        raise RegionCommandError("要删除的顶点不存在。")
+    incident = [
+        edge
+        for edge in project.topology.edges.values()
+        if vertex_id in {edge.start_vertex_id, edge.end_vertex_id}
+    ]
+    if len(incident) != 2:
+        raise RegionCommandError("多区域结点或非普通顶点不能直接删除。")
+    if any(edge.samples or edge.curve for edge in incident):
+        raise RegionCommandError("包含采样点或曲线的边暂不能删除中间顶点。")
+    edge_ids = {edge.id for edge in incident}
+    vertices = dict(project.topology.vertices)
+    edges = dict(project.topology.edges)
+    half_edges = dict(project.topology.half_edges)
+    rings = dict(project.topology.rings)
+    endpoint_pairs = []
+    old_half_ids = set()
+    changed_faces = set()
+    for ring_id, ring in project.topology.rings.items():
+        half_ids = list(ring.half_edge_ids)
+        for index, half_id in enumerate(half_ids):
+            next_index = (index + 1) % len(half_ids)
+            left = project.topology.half_edges[half_id]
+            right = project.topology.half_edges[half_ids[next_index]]
+            if left.edge_id not in edge_ids or right.edge_id not in edge_ids:
+                continue
+
+            def ends(half):
+                edge = project.topology.edges[half.edge_id]
+                return (
+                    (edge.end_vertex_id, edge.start_vertex_id)
+                    if half.reversed
+                    else (edge.start_vertex_id, edge.end_vertex_id)
+                )
+
+            left_start, left_end = ends(left)
+            right_start, right_end = ends(right)
+            if left_end != vertex_id or right_start != vertex_id:
+                continue
+            endpoint_pairs.append(
+                (left_start, right_end, ring_id, index, half_id, half_ids[next_index])
+            )
+            break
+    if len(endpoint_pairs) < 1:
+        raise RegionCommandError("顶点没有形成可合并的连续边链。")
+    edge_by_key = {}
+    for edge in edges.values():
+        start = vertices[edge.start_vertex_id].point.as_tuple()
+        end = vertices[edge.end_vertex_id].point.as_tuple()
+        edge_by_key[tuple(sorted((start, end)))] = edge.id
+    new_edges = {}
+    replacement_edge_id = None
+    new_half_edges = {}
+    for start_vertex, end_vertex, ring_id, index, left_id, right_id in endpoint_pairs:
+        start_point = vertices[start_vertex].point.as_tuple()
+        end_point = vertices[end_vertex].point.as_tuple()
+        key = tuple(sorted((start_point, end_point)))
+        if replacement_edge_id is None:
+            replacement_edge_id = edge_by_key.get(key)
+            if replacement_edge_id is None:
+                merged_edge = Edge(start_vertex_id=start_vertex, end_vertex_id=end_vertex)
+                replacement_edge_id = merged_edge.id
+                new_edges[merged_edge.id] = merged_edge
+        half = HalfEdge(
+            edge_id=replacement_edge_id,
+            reversed=(
+                start_vertex
+                != (
+                    new_edges.get(replacement_edge_id) or edges[replacement_edge_id]
+                ).start_vertex_id
+            ),
+        )
+        new_half_edges[half.id] = half
+        ring_half_ids = list(rings[ring_id].half_edge_ids)
+        next_index = (index + 1) % len(ring_half_ids)
+        if next_index == 0:
+            ring_half_ids = [half.id] + ring_half_ids[2:]
+        else:
+            ring_half_ids[index : next_index + 1] = [half.id]
+        rings[ring_id] = replace(rings[ring_id], half_edge_ids=tuple(ring_half_ids))
+        old_half_ids.update((left_id, right_id))
+        changed_faces.update(
+            face.id for face in project.topology.faces.values() if face.outer_ring_id == ring_id
+        )
+    if replacement_edge_id is None:
+        raise RegionCommandError("顶点没有可合并的边。")
+    for edge in incident:
+        edges.pop(edge.id, None)
+    edges.update(new_edges)
+    for half_id in old_half_ids:
+        half_edges.pop(half_id, None)
+    half_edges.update(new_half_edges)
+    vertices.pop(vertex_id, None)
+    topology = replace(
+        project.topology,
+        vertices=vertices,
+        edges=edges,
+        half_edges=half_edges,
+        rings=rings,
+        geometry_version=project.topology.geometry_version + 1,
+    )
+    candidate = replace(project, topology=topology, modified_at=datetime.now(UTC))
+    for region in candidate.regions.values():
+        if not region.visible:
+            continue
+        for face_id in region.face_ids:
+            polygon = candidate.topology.face_polygon(face_id)
+            if not polygon.is_valid or polygon.area <= project.tolerances.minimum_face_area:
+                raise RegionCommandError("删除顶点会造成无效几何。")
+    return candidate

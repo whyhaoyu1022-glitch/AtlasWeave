@@ -6,6 +6,7 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     add_region_component,
     create_top_level_region,
+    delete_simple_vertex,
     insert_vertex_on_edge,
     merge_sibling_regions,
     move_shared_vertex,
@@ -306,4 +307,43 @@ def test_insert_vertex_on_shared_edge_updates_both_rings():
     assert shared_edge_id not in updated.topology.edges
     assert sum(
         updated.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)
+
+
+def test_delete_inserted_shared_vertex_restores_edge_count_and_area():
+    project = Project(
+        name="删点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    edge_uses = project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    shared_edge_id = next(edge_id for edge_id, uses in edge_uses.items() if len(uses) == 2)
+    edge = project.topology.edges[shared_edge_id]
+    start = project.topology.vertices[edge.start_vertex_id]
+    end = project.topology.vertices[edge.end_vertex_id]
+    from atlasweave.domain.geometry import Point
+
+    inserted = insert_vertex_on_edge(
+        project, shared_edge_id, Point((start.x + end.x) / 2, (start.y + end.y) / 2)
+    )
+    new_vertex = next(
+        vertex.id
+        for vertex in inserted.topology.vertices.values()
+        if abs(vertex.x - (start.x + end.x) / 2) < 1e-9
+        and abs(vertex.y - (start.y + end.y) / 2) < 1e-9
+    )
+    deleted = delete_simple_vertex(inserted, new_vertex)
+    assert new_vertex not in deleted.topology.vertices
+    assert sum(
+        deleted.topology.face_polygon(child.face_ids[0]).area for child in children
     ) == pytest.approx(10000)
