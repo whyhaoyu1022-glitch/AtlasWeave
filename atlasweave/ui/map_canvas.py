@@ -30,6 +30,7 @@ class MapCanvas(QWidget):
     freehand_completed = pyqtSignal(object)
     split_changed = pyqtSignal(object)
     split_completed = pyqtSignal(object)
+    vertex_drag_completed = pyqtSignal(str, object)
 
     MIN_ZOOM_PERCENT = 5.0
     MAX_ZOOM_PERCENT = 6400.0
@@ -69,6 +70,9 @@ class MapCanvas(QWidget):
         self._split_dragging = False
         self._split_last_screen: QPointF | None = None
         self._split_preview: tuple[tuple[QPointF, ...], ...] = ()
+        self._vertex_mode = False
+        self._vertex_drag_id: str | None = None
+        self._vertex_drag_point: QPointF | None = None
 
     @property
     def world_size(self) -> tuple[float, float]:
@@ -181,6 +185,25 @@ class MapCanvas(QWidget):
         self._split_dragging = False
         self.setCursor(
             Qt.CursorShape.CrossCursor if self._split_mode else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    @property
+    def vertex_mode(self) -> bool:
+        return self._vertex_mode
+
+    def set_vertex_mode(self, enabled: bool) -> None:
+        self._vertex_mode = bool(enabled)
+        self._vertex_drag_id = None
+        self._vertex_drag_point = None
+        if self._vertex_mode:
+            self._draw_mode = False
+            self.set_freehand_mode(False)
+            self.set_split_mode(False)
+            self.cancel_drawing()
+            self.cancel_freehand()
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if self._vertex_mode else Qt.CursorShape.ArrowCursor
         )
         self.update()
 
@@ -335,6 +358,17 @@ class MapCanvas(QWidget):
                 "paths": tuple(paths),
                 "area": area,
                 "geometry": self._union_geometries(geometries),
+                "vertices": tuple(
+                    (vertex_id, QPointF(vertex.x, vertex.y))
+                    for face_id in region.face_ids
+                    for half_id in topology.rings[
+                        topology.faces[face_id].outer_ring_id
+                    ].half_edge_ids
+                    for vertex_id in (
+                        topology.edges[topology.half_edges[half_id].edge_id].start_vertex_id,
+                    )
+                    for vertex in (topology.vertices[vertex_id],)
+                ),
             }
         self._regions = records
         self._geometry_errors = errors
@@ -342,6 +376,17 @@ class MapCanvas(QWidget):
         self.selection_changed.emit(tuple(sorted(self._selected_ids)))
         self.update()
 
+    def _nearest_vertex(self, point: QPointF):
+        candidates = []
+        selected = self._selected_ids
+        for record in self._regions.values():
+            if selected and record["region"].id not in selected:
+                continue
+            for vertex_id, world_point in record.get("vertices", ()):
+                distance = (self.world_to_screen(world_point) - point).manhattanLength()
+                if distance <= 12:
+                    candidates.append((distance, vertex_id, world_point))
+        return min(candidates, default=None)
     def clear_regions(self) -> None:
         self._regions = {}
         self._geometry_errors = {}
@@ -470,6 +515,18 @@ class MapCanvas(QWidget):
             if self._split_cursor is not None:
                 painter.drawLine(split_line[-1], self.world_to_screen(self._split_cursor))
 
+        if self._vertex_mode:
+            painter.setBrush(QBrush(QColor("#F59E0B")))
+            painter.setPen(QPen(QColor("#92400E"), 1.5))
+            for record in self._regions.values():
+                if self._selected_ids and record["region"].id not in self._selected_ids:
+                    continue
+                for _vertex_id, world_point in record.get("vertices", ()):
+                    painter.drawEllipse(self.world_to_screen(world_point), 5.0, 5.0)
+            if self._vertex_drag_point is not None:
+                painter.setBrush(QBrush(QColor("#DC2626")))
+                painter.drawEllipse(self.world_to_screen(self._vertex_drag_point), 6.0, 6.0)
+
         if (
             not self._regions
             and not self._draft_points
@@ -505,6 +562,13 @@ class MapCanvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         point = event.position()
+        if self._vertex_mode:
+            if self._vertex_drag_id is not None:
+                self._vertex_drag_point = self.screen_to_world(point)
+                self._emit_coordinate(point)
+                self.update()
+            event.accept()
+            return
         if self._split_mode:
             self._split_cursor = self.screen_to_world(point)
             if self._split_dragging and event.buttons() & Qt.MouseButton.LeftButton:
@@ -542,6 +606,22 @@ class MapCanvas(QWidget):
         super().mouseMoveEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._vertex_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                nearest = self._nearest_vertex(event.position())
+                if nearest is not None:
+                    _, self._vertex_drag_id, self._vertex_drag_point = nearest
+                    self.setFocus()
+                event.accept()
+                return
+            if event.button() == Qt.MouseButton.RightButton:
+                self._vertex_drag_id = None
+                self._vertex_drag_point = None
+                self.update()
+                event.accept()
+                return
+            super().mousePressEvent(event)
+            return
         if self._freehand_mode:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._freehand_dragging = True
@@ -618,6 +698,14 @@ class MapCanvas(QWidget):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._vertex_mode and event.button() == Qt.MouseButton.LeftButton:
+            if self._vertex_drag_id is not None and self._vertex_drag_point is not None:
+                self.vertex_drag_completed.emit(self._vertex_drag_id, self._vertex_drag_point)
+            self._vertex_drag_id = None
+            self._vertex_drag_point = None
+            self.update()
+            event.accept()
+            return
         if self._freehand_mode and event.button() == Qt.MouseButton.LeftButton:
             if self._freehand_dragging:
                 self._add_freehand_screen_point(event.position())

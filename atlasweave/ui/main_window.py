@@ -51,11 +51,13 @@ from atlasweave.commands.region_commands import (
     add_region_component,
     create_top_level_region,
     merge_sibling_regions,
+    move_shared_vertex,
     polygon_from_freehand,
     preview_region_split,
     region_adjacency,
     split_region_into_children,
 )
+from atlasweave.domain.geometry import Point
 from atlasweave.domain.hierarchy import HierarchyLevel
 from atlasweave.domain.project import Project
 from atlasweave.services.project_io import (
@@ -467,6 +469,7 @@ class MainWindow(QMainWindow):
         self.canvas.polygon_completed.connect(self._polygon_completed)
         self.canvas.freehand_completed.connect(self._freehand_completed)
         self.canvas.split_completed.connect(self._split_completed)
+        self.canvas.vertex_drag_completed.connect(self._vertex_drag_completed)
         self.canvas.hide()
         self._create_docks()
         self.setObjectName("mainWindow")
@@ -760,6 +763,11 @@ class MainWindow(QMainWindow):
         self.component_action.setShortcut(QKeySequence("A"))
         self.component_action.toggled.connect(self._set_component_mode)
         view_menu.addAction(self.component_action)
+        self.vertex_action = QAction("顶点编辑", self)
+        self.vertex_action.setCheckable(True)
+        self.vertex_action.setShortcut(QKeySequence("V"))
+        self.vertex_action.toggled.connect(self._set_vertex_mode)
+        edit_menu.addAction(self.vertex_action)
         self.split_action = QAction("切分区域", self)
         self.split_action.setCheckable(True)
         self.split_action.setShortcut(QKeySequence("S"))
@@ -865,6 +873,7 @@ class MainWindow(QMainWindow):
         self.draw_action.setEnabled(writable)
         self.freehand_action.setEnabled(writable)
         self.component_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 1)
+        self.vertex_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
         self.split_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
         self.merge_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 2)
 
@@ -915,6 +924,38 @@ class MainWindow(QMainWindow):
         else:
             self.canvas.cancel_freehand()
         self.canvas.set_freehand_mode(enabled)
+
+    def _set_vertex_mode(self, enabled: bool) -> None:
+        if enabled and (
+            self.project is None or self.read_only or not self.canvas.selected_region_ids
+        ):
+            self.vertex_action.setChecked(False)
+            self.statusBar().showMessage("请先选择一个可写区域。", 4000)
+            return
+        if enabled:
+            self.pan_action.setChecked(False)
+            self.draw_action.setChecked(False)
+            self.freehand_action.setChecked(False)
+            self.component_action.setChecked(False)
+            self.split_action.setChecked(False)
+            self.statusBar().showMessage("顶点编辑：拖动橙色顶点，右键取消当前拖动")
+        self.canvas.set_vertex_mode(enabled)
+
+    def _vertex_drag_completed(self, vertex_id: str, point) -> None:
+        if self.project is None or self.read_only:
+            return
+        before = self.project
+        try:
+            after = move_shared_vertex(self.project, vertex_id, Point(point.x(), point.y()))
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"顶点移动失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        selection = self.canvas.selected_region_ids
+        self.undo_stack.push(
+            ProjectSnapshotCommand(self, before, after, selection, selection, "移动共享顶点")
+        )
+        self.statusBar().showMessage("已移动共享顶点（可撤销）", 4000)
 
     def _set_split_mode(self, enabled: bool) -> None:
         if enabled and (
