@@ -1,1 +1,523 @@
-aW1wb3J0IHB5dGVzdApmcm9tIFB5UXQ2LlF0Q29yZSBpbXBvcnQgUVBvaW50Rgpmcm9tIHNoYXBlbHkuZ2VvbWV0cnkgaW1wb3J0IFBvbHlnb24KCmZyb20gYXRsYXN3ZWF2ZS5jb21tYW5kcy5yZWdpb25fY29tbWFuZHMgaW1wb3J0ICgKICAgIFJlZ2lvbkNvbW1hbmRFcnJvciwKICAgIGFkZF9yZWdpb25fY29tcG9uZW50LAogICAgY3JlYXRlX3RvcF9sZXZlbF9yZWdpb24sCiAgICBkZWxldGVfc2ltcGxlX3ZlcnRleCwKICAgIGluc2VydF92ZXJ0ZXhfb25fZWRnZSwKICAgIG1lcmdlX3NpYmxpbmdfcmVnaW9ucywKICAgIG1vdmVfc2hhcmVkX3ZlcnRleCwKICAgIHBvbHlnb25fZnJvbV9mcmVlaGFuZCwKICAgIHByZXZpZXdfcmVnaW9uX3NwbGl0LAogICAgcmVnaW9uX2FkamFjZW5jeSwKICAgIHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuLAogICAgc3BsaXRfcmVnaW9uc19pbl9iYXRjaCwKKQpmcm9tIGF0bGFzd2VhdmUuZG9tYWluLmhpZXJhcmNoeSBpbXBvcnQgSGllcmFyY2h5TGV2ZWwKZnJvbSBhdGxhc3dlYXZlLmRvbWFpbi5wcm9qZWN0IGltcG9ydCBQcm9qZWN0CmZyb20gYXRsYXN3ZWF2ZS5zZXJ2aWNlcy5wcm9qZWN0X2lvIGltcG9ydCBQcm9qZWN0U3RvcmUKCgpkZWYgdGVzdF9jcmVhdGVfdG9wX2xldmVsX3JlZ2lvbl9yZXR1cm5zX3ZhbGlkX2ltbXV0YWJsZV9zbmFwc2hvdCh0bXBfcGF0aCk6CiAgICBwcm9qZWN0LCByZWdpb24gPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBQcm9qZWN0KG5hbWU9IuWRveS7pOa1i+ivlSIpLCBQb2x5Z29uKCgoMTAsIDEwKSwgKDQwLCAxMCksICgyNSwgNDApKSksICLlm73lrrYiLCAi5Zu95a62IgogICAgKQoKICAgIGFzc2VydCByZWdpb24uaWQgaW4gcHJvamVjdC5yZWdpb25zCiAgICBhc3NlcnQgbGVuKHByb2plY3QudG9wb2xvZ3kuZmFjZXMpID09IDEKICAgIGFzc2VydCBwcm9qZWN0LnRvcG9sb2d5LmZhY2VfcG9seWdvbihyZWdpb24uZmFjZV9pZHNbMF0pLmlzX3ZhbGlkCiAgICBwYXRoID0gdG1wX3BhdGggLyAiZHJhd24uYXRsYXN3ZWF2ZSIKICAgIFByb2plY3RTdG9yZSgpLnNhdmUocHJvamVjdCwgcGF0aCkKICAgIGxvYWRlZCA9IFByb2plY3RTdG9yZSgpLmxvYWQocGF0aCkKICAgIGFzc2VydCBsb2FkZWQucHJvamVjdC5yZWdpb25zW3JlZ2lvbi5pZF0ubmFtZSA9PSAi5Zu95a62IgogICAgYXNzZXJ0IGxvYWRlZC5wcm9qZWN0LnRvcG9sb2d5LmZhY2VfcG9seWdvbihyZWdpb24uZmFjZV9pZHNbMF0pLmFyZWEgPT0gcHl0ZXN0LmFwcHJveCg0NTApCgoKZGVmIHRlc3RfY3JlYXRlX3RvcF9sZXZlbF9yZWdpb25fcmVqZWN0c19vdmVybGFwX2FuZF9vdXRfb2ZfYm91bmRzKCk6CiAgICBwcm9qZWN0LCBfID0gY3JlYXRlX3RvcF9sZXZlbF9yZWdpb24oCiAgICAgICAgUHJvamVjdChuYW1lPSLph43lj6DmtYvor5UiKSwgUG9seWdvbigoKDEwLCAxMCksICg0MCwgMTApLCAoMjUsIDQwKSkpLCAi5bey5pyJIiwgIuWbveWutiIKICAgICkKICAgIHdpdGggcHl0ZXN0LnJhaXNlcyhSZWdpb25Db21tYW5kRXJyb3IsIG1hdGNoPSLph43lj6AiKToKICAgICAgICBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbihwcm9qZWN0LCBQb2x5Z29uKCgoMjAsIDE1KSwgKDQ1LCAxNSksICgzMCwgMzUpKSksICLph43lj6AiLCAi5Zu95a62IikKICAgIHdpdGggcHl0ZXN0LnJhaXNlcyhSZWdpb25Db21tYW5kRXJyb3IsIG1hdGNoPSLkuJbnlYzovrnnlYwiKToKICAgICAgICBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICAgICAgcHJvamVjdCwgUG9seWdvbigoKDExOTAsIDkwKSwgKDEyMTAsIDkwKSwgKDExOTAsIDExMCkpKSwgIui2iueVjCIsICLlm73lrrYiCiAgICAgICAgKQoKCmRlZiB0ZXN0X3BvbHlnb25fZnJvbV9mcmVlaGFuZF9jbG9zZXNfYW5kX3NpbXBsaWZpZXNfc3Ryb2tlKCk6CiAgICBwb2x5Z29uID0gcG9seWdvbl9mcm9tX2ZyZWVoYW5kKAogICAgICAgIFsKICAgICAgICAgICAgUVBvaW50RigxMCwgMTApLAogICAgICAgICAgICBRUG9pbnRGKDEwLjAxLCAxMC4wMSksCiAgICAgICAgICAgIFFQb2ludEYoNDAsIDEwKSwKICAgICAgICAgICAgUVBvaW50Rig0MCwgNDApLAogICAgICAgICAgICBRUG9pbnRGKDEwLCA0MCksCiAgICAgICAgXSwKICAgICAgICB0b2xlcmFuY2U9MC4wNSwKICAgICkKCiAgICBhc3NlcnQgcG9seWdvbi5pc192YWxpZAogICAgYXNzZXJ0IHBvbHlnb24uZXh0ZXJpb3IuaXNfcmluZwogICAgYXNzZXJ0IHBvbHlnb24uYXJlYSA9PSBweXRlc3QuYXBwcm94KDkwMCwgYWJzPTEpCgoKZGVmIHRlc3Rfc3BsaXRfcmVnaW9uX2NyZWF0ZXNfY2hpbGRyZW5fd2l0aF9zaGFyZWRfZWRnZSgpOgogICAgcHJvamVjdCA9IFByb2plY3QoCiAgICAgICAgbmFtZT0i5YiH5YiG5rWL6K+VIiwKICAgICAgICB3b3JsZF93aWR0aF9rbT0xMDAsCiAgICAgICAgd29ybGRfaGVpZ2h0X2ttPTEwMCwKICAgICAgICBoaWVyYXJjaHlfbGV2ZWxzPSgKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MCwgbmFtZT0i5Zu95a6257qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuWbveWutiIpLAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0xLCBuYW1lPSLnnIHnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i55yBIiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTIsIG5hbWU9IuW4gue6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLluIIiKSwKICAgICAgICApLAogICAgKQogICAgcHJvamVjdCwgcGFyZW50ID0gY3JlYXRlX3RvcF9sZXZlbF9yZWdpb24oCiAgICAgICAgcHJvamVjdCwgUG9seWdvbigoKDEwLCAxMCksICg5MCwgMTApLCAoOTAsIDkwKSwgKDEwLCA5MCkpKSwgIuWbveWutiIsICLlm73lrrYiCiAgICApCgogICAgc3BsaXRfcHJvamVjdCwgY2hpbGRyZW4gPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LAogICAgICAgIHBhcmVudC5pZCwKICAgICAgICBbUVBvaW50RigtMTAsIDUwKSwgUVBvaW50RigxMTAsIDUwKV0sCiAgICAgICAgKCLljJfnnIEiLCAi5Y2X55yBIiksCiAgICAgICAgIuecgSIsCiAgICApCgogICAgYXNzZXJ0IGxlbihjaGlsZHJlbikgPT0gMgogICAgYXNzZXJ0IG5vdCBzcGxpdF9wcm9qZWN0LnJlZ2lvbnNbcGFyZW50LmlkXS52aXNpYmxlCiAgICBhc3NlcnQgYWxsKGNoaWxkLnBhcmVudF9pZCA9PSBwYXJlbnQuaWQgZm9yIGNoaWxkIGluIGNoaWxkcmVuKQogICAgYXNzZXJ0IHN1bSgKICAgICAgICBzcGxpdF9wcm9qZWN0LnRvcG9sb2d5LmZhY2VfcG9seWdvbihjaGlsZC5mYWNlX2lkc1swXSkuYXJlYSBmb3IgY2hpbGQgaW4gY2hpbGRyZW4KICAgICkgPT0gcHl0ZXN0LmFwcHJveCg2NDAwKQogICAgZWRnZV91c2VzID0gc3BsaXRfcHJvamVjdC50b3BvbG9neS5lZGdlX3VzZXModHVwbGUoY2hpbGQuZmFjZV9pZHNbMF0gZm9yIGNoaWxkIGluIGNoaWxkcmVuKSkKICAgIGFzc2VydCBhbnkobGVuKHVzZXMpID09IDIgZm9yIHVzZXMgaW4gZWRnZV91c2VzLnZhbHVlcygpKQoKCmRlZiB0ZXN0X3NwbGl0X3ByZXZpZXdfc3VwcG9ydHNfbXVsdGlwbGVfcGllY2VzX2FuZF9uZXh0X2xldmVsKCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLlpJrmrrXliIfliIbmtYvor5UiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEyMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTIwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MiwgbmFtZT0i5biC57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuW4giIpLAogICAgICAgICksCiAgICApCiAgICB1X3NoYXBlID0gUG9seWdvbigKICAgICAgICAoKDAsIDApLCAoMTAwLCAwKSwgKDEwMCwgMTAwKSwgKDYwLCAxMDApLCAoNjAsIDQwKSwgKDQwLCA0MCksICg0MCwgMTAwKSwgKDAsIDEwMCkpCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbihwcm9qZWN0LCB1X3NoYXBlLCAi5Zu95a62IiwgIuWbveWutiIpCiAgICBjdXQgPSBbUVBvaW50RigtMTAsIDMwKSwgUVBvaW50RigxMTAsIDcwKSwgUVBvaW50RigtMTAsIDkwKV0KCiAgICBwcmV2aWV3ID0gcHJldmlld19yZWdpb25fc3BsaXQocHJvamVjdCwgcGFyZW50LmlkLCBjdXQpCiAgICBhc3NlcnQgbGVuKHByZXZpZXcucGllY2VzKSA9PSA1CiAgICBhc3NlcnQgcHJldmlldy50b3RhbF9hcmVhID09IHB5dGVzdC5hcHByb3godV9zaGFwZS5hcmVhKQogICAgc3BsaXRfcHJvamVjdCwgY2hpbGRyZW4gPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LCBwYXJlbnQuaWQsIGN1dCwgdHVwbGUoZiLnnIF7aX0iIGZvciBpIGluIHJhbmdlKDEsIDYpKSwgIuecgSIKICAgICkKCiAgICBhc3NlcnQgbGVuKGNoaWxkcmVuKSA9PSA1CiAgICBhc3NlcnQgYWxsKGNoaWxkLmxldmVsX2lkID09IHByb2plY3QuaGllcmFyY2h5X2xldmVsc1sxXS5pZCBmb3IgY2hpbGQgaW4gY2hpbGRyZW4pCiAgICBhc3NlcnQgYWxsKGNoaWxkLnBhcmVudF9pZCA9PSBwYXJlbnQuaWQgZm9yIGNoaWxkIGluIGNoaWxkcmVuKQogICAgZWRnZV91c2VzID0gc3BsaXRfcHJvamVjdC50b3BvbG9neS5lZGdlX3VzZXModHVwbGUoY2hpbGQuZmFjZV9pZHNbMF0gZm9yIGNoaWxkIGluIGNoaWxkcmVuKSkKICAgIGFzc2VydCBzdW0obGVuKHVzZXMpID09IDIgZm9yIHVzZXMgaW4gZWRnZV91c2VzLnZhbHVlcygpKSA+PSA0CgoKZGVmIHRlc3Rfc3BsaXRfY2hpbGRfdXNlc19uZXh0X2xldmVsX2FuZF9yZWplY3RzX2V4aXN0aW5nX2NoaWxkcmVuKCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLlsYLnuqfliIfliIbmtYvor5UiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEwMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTAwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MiwgbmFtZT0i5biC57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuW4giIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoMTAsIDEwKSwgKDkwLCAxMCksICg5MCwgOTApLCAoMTAsIDkwKSkpLCAi5Zu95a62IiwgIuWbveWutiIKICAgICkKICAgIHByb2plY3QsIHByb3ZpbmNlcyA9IHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgIHByb2plY3QsCiAgICAgICAgcGFyZW50LmlkLAogICAgICAgIFtRUG9pbnRGKC0xMCwgNTApLCBRUG9pbnRGKDExMCwgNTApXSwKICAgICAgICAoIuWMl+ecgSIsICLljZfnnIEiKSwKICAgICAgICAi55yBIiwKICAgICkKCiAgICBwcm9qZWN0LCBjaXRpZXMgPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LAogICAgICAgIHByb3ZpbmNlc1swXS5pZCwKICAgICAgICBbUVBvaW50RigwLCAzMCksIFFQb2ludEYoMTAwLCAzMCldLAogICAgICAgICgi5YyX5biCIiwgIuWNl+W4giIpLAogICAgICAgICLluIIiLAogICAgKQogICAgYXNzZXJ0IGFsbChjaXR5LmxldmVsX2lkID09IHByb2plY3QuaGllcmFyY2h5X2xldmVsc1syXS5pZCBmb3IgY2l0eSBpbiBjaXRpZXMpCiAgICB3aXRoIHB5dGVzdC5yYWlzZXMoUmVnaW9uQ29tbWFuZEVycm9yLCBtYXRjaD0i5LiN5Y+v6KeBfOW3sue7j+WMheWQq+WtkOWMuuWfnyIpOgogICAgICAgIHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgICAgICBwcm9qZWN0LAogICAgICAgICAgICBwcm92aW5jZXNbMF0uaWQsCiAgICAgICAgICAgIFtRUG9pbnRGKDAsIDIwKSwgUVBvaW50RigxMDAsIDIwKV0sCiAgICAgICAgICAgICgi6YeN5aSN5biC5LiAIiwgIumHjeWkjeW4guS6jCIpLAogICAgICAgICAgICAi5biCIiwKICAgICAgICApCgoKZGVmIHRlc3RfYWR2YW5jZWRfcGFyZW50X3Jlc3BsaXRfaGlkZXNfb2xkX2NoaWxkcmVuX2FuZF9yZXBsYWNlc19wYXJ0aXRpb24oKToKICAgIHByb2plY3QgPSBQcm9qZWN0KAogICAgICAgIG5hbWU9IueItue6p+mHjeWIh+WIhiIsCiAgICAgICAgd29ybGRfd2lkdGhfa209MTAwLAogICAgICAgIHdvcmxkX2hlaWdodF9rbT0xMDAsCiAgICAgICAgaGllcmFyY2h5X2xldmVscz0oCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTAsIG5hbWU9IuWbveWutue6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLlm73lrrYiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MSwgbmFtZT0i55yB57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuecgSIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoMCwgMCksICgxMDAsIDApLCAoMTAwLCAxMDApLCAoMCwgMTAwKSkpLCAi5Zu95a62IiwgIuWbveWutiIKICAgICkKICAgIHByb2plY3QsIG9sZF9jaGlsZHJlbiA9IHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgIHByb2plY3QsCiAgICAgICAgcGFyZW50LmlkLAogICAgICAgIFtRUG9pbnRGKC0xMCwgNTApLCBRUG9pbnRGKDExMCwgNTApXSwKICAgICAgICAoIuaXp+WMlyIsICLml6fljZciKSwKICAgICAgICAi55yBIiwKICAgICkKICAgIGFmdGVyLCBuZXdfY2hpbGRyZW4gPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LAogICAgICAgIHBhcmVudC5pZCwKICAgICAgICBbUVBvaW50RigtMTAsIDMwKSwgUVBvaW50RigxMTAsIDMwKSwgUVBvaW50RigtMTAsIDcwKV0sCiAgICAgICAgKCLmlrDkuIAiLCAi5paw5LqMIiwgIuaWsOS4iSIpLAogICAgICAgICLnnIEiLAogICAgICAgIGFsbG93X2V4aXN0aW5nX2NoaWxkcmVuPVRydWUsCiAgICApCiAgICBhc3NlcnQgbGVuKG5ld19jaGlsZHJlbikgPT0gMwogICAgYXNzZXJ0IGFsbChub3QgYWZ0ZXIucmVnaW9uc1tjaGlsZC5pZF0udmlzaWJsZSBmb3IgY2hpbGQgaW4gb2xkX2NoaWxkcmVuKQogICAgYXNzZXJ0IGFsbChjaGlsZC5wYXJlbnRfaWQgPT0gcGFyZW50LmlkIGZvciBjaGlsZCBpbiBuZXdfY2hpbGRyZW4pCiAgICBhc3NlcnQgc3VtKAogICAgICAgIGFmdGVyLnRvcG9sb2d5LmZhY2VfcG9seWdvbihjaGlsZC5mYWNlX2lkc1swXSkuYXJlYSBmb3IgY2hpbGQgaW4gbmV3X2NoaWxkcmVuCiAgICApID09IHB5dGVzdC5hcHByb3goMTAwMDApCgoKZGVmIHRlc3RfYmF0Y2hfc3BsaXRfYXBwbGllc19tdWx0aXBsZV92YWxpZGF0ZWRfc3RlcHNfaW5fb25lX3NuYXBzaG90KCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLlha3ljLrov57nu63liIfliIYiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEyMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTIwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MiwgbmFtZT0i5biC57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuW4giIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoMCwgMCksICgxMDAsIDApLCAoMTAwLCA2MCksICgwLCA2MCkpKSwgIuWbveWutiIsICLlm73lrrYiCiAgICApCiAgICBmaXJzdF9wcm9qZWN0LCBmaXJzdF9jaGlsZHJlbiA9IHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgIHByb2plY3QsCiAgICAgICAgcGFyZW50LmlkLAogICAgICAgIFtRUG9pbnRGKC0xMCwgMTApLCBRUG9pbnRGKDExMCwgMTApXSwKICAgICAgICAoIuS4gOecgSIsICLkvZnkuIsiKSwKICAgICAgICAi55yBIiwKICAgICkKICAgIHJlbWFpbmluZyA9IGZpcnN0X2NoaWxkcmVuWzFdCiAgICBiYXRjaF9zdGVwcyA9ICgocmVtYWluaW5nLmlkLCBbUVBvaW50RigtMTAsIDIwKSwgUVBvaW50RigxMTAsIDIwKV0sICgi5LqM55yBIiwgIuS9meS4i+S6jCIpKSwpCiAgICBhZnRlcl9iYXRjaCwgY3JlYXRlZCA9IHNwbGl0X3JlZ2lvbnNfaW5fYmF0Y2goZmlyc3RfcHJvamVjdCwgYmF0Y2hfc3RlcHMsICLnnIEiKQogICAgYXNzZXJ0IGxlbihjcmVhdGVkKSA9PSAyCiAgICBhc3NlcnQgc3VtKAogICAgICAgIGFmdGVyX2JhdGNoLnRvcG9sb2d5LmZhY2VfcG9seWdvbihmYWNlX2lkKS5hcmVhCiAgICAgICAgZm9yIHJlZ2lvbiBpbiBhZnRlcl9iYXRjaC5yZWdpb25zLnZhbHVlcygpCiAgICAgICAgaWYgcmVnaW9uLnZpc2libGUKICAgICAgICBmb3IgZmFjZV9pZCBpbiByZWdpb24uZmFjZV9pZHMKICAgICkgPT0gcHl0ZXN0LmFwcHJveCg2MDAwKQogICAgYXNzZXJ0IGFsbChyZWdpb24ucGFyZW50X2lkIGluIGFmdGVyX2JhdGNoLnJlZ2lvbnMgZm9yIHJlZ2lvbiBpbiBjcmVhdGVkKQoKCmRlZiB0ZXN0X3NpbmdsZV9wb2x5bGluZV9jYW5fY3JlYXRlX3NpeF9zaWJsaW5nX3JlZ2lvbnMoKToKICAgIHByb2plY3QgPSBQcm9qZWN0KAogICAgICAgIG5hbWU9IuWFreWMuuWIh+WIhiIsCiAgICAgICAgd29ybGRfd2lkdGhfa209MTIwLAogICAgICAgIHdvcmxkX2hlaWdodF9rbT0xMjAsCiAgICAgICAgaGllcmFyY2h5X2xldmVscz0oCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTAsIG5hbWU9IuWbveWutue6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLlm73lrrYiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MSwgbmFtZT0i55yB57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuecgSIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoMCwgMCksICgxMDAsIDApLCAoMTAwLCA2MCksICgwLCA2MCkpKSwgIuWbveWutiIsICLlm73lrrYiCiAgICApCiAgICB5cyA9ICg4LCAxNiwgMjQsIDMyLCA0MCwgNDgpCiAgICBjdXQgPSBbUVBvaW50RigtMTAgaWYgaW5kZXggJSAyID09IDAgZWxzZSAxMTAsIHkpIGZvciBpbmRleCwgeSBpbiBlbnVtZXJhdGUoeXMpXQogICAgYWZ0ZXIsIGNoaWxkcmVuID0gc3BsaXRfcmVnaW9uX2ludG9fY2hpbGRyZW4oCiAgICAgICAgcHJvamVjdCwgcGFyZW50LmlkLCBjdXQsIHR1cGxlKGYi55yBe2l9IiBmb3IgaSBpbiByYW5nZSgxLCA3KSksICLnnIEiCiAgICApCiAgICBhc3NlcnQgbGVuKGNoaWxkcmVuKSA9PSA2CiAgICBhc3NlcnQgc3VtKAogICAgICAgIGFmdGVyLnRvcG9sb2d5LmZhY2VfcG9seWdvbihjaGlsZC5mYWNlX2lkc1swXSkuYXJlYSBmb3IgY2hpbGQgaW4gY2hpbGRyZW4KICAgICkgPT0gcHl0ZXN0LmFwcHJveCg2MDAwKQogICAgZWRnZV91c2VzID0gYWZ0ZXIudG9wb2xvZ3kuZWRnZV91c2VzKHR1cGxlKGNoaWxkLmZhY2VfaWRzWzBdIGZvciBjaGlsZCBpbiBjaGlsZHJlbikpCiAgICBhc3NlcnQgc3VtKGxlbih1c2VzKSA9PSAyIGZvciB1c2VzIGluIGVkZ2VfdXNlcy52YWx1ZXMoKSkgPj0gNQoKCmRlZiB0ZXN0X3NwbGl0X211bHRpX2NvbXBvbmVudF9wYXJlbnRfcHJlc2VydmVzX2FsbF9jb21wb25lbnRzKCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLlpJrpg6jku7bph43liIfliIYiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEyMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTIwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MiwgbmFtZT0i5biC57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuW4giIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoNSwgNSksICgzNSwgNSksICgzNSwgMzUpLCAoNSwgMzUpKSksICLlm73lrrYiLCAi5Zu95a62IgogICAgKQogICAgcHJvamVjdCwgcGFyZW50ID0gYWRkX3JlZ2lvbl9jb21wb25lbnQoCiAgICAgICAgcHJvamVjdCwgcGFyZW50LmlkLCBQb2x5Z29uKCgoNjUsIDY1KSwgKDk1LCA2NSksICg5NSwgOTUpLCAoNjUsIDk1KSkpCiAgICApCiAgICBwcmV2aWV3ID0gcHJldmlld19yZWdpb25fc3BsaXQocHJvamVjdCwgcGFyZW50LmlkLCBbUVBvaW50RigtMTAsIDIwKSwgUVBvaW50RigxMTAsIDIwKV0pCiAgICBhc3NlcnQgbGVuKHByZXZpZXcucGllY2VzKSA9PSAzCiAgICBhZnRlciwgY2hpbGRyZW4gPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LCBwYXJlbnQuaWQsIFtRUG9pbnRGKC0xMCwgMjApLCBRUG9pbnRGKDExMCwgMjApXSwgKCLnlLIiLCAi5LmZIiwgIumjnuWcsCIpLCAi55yBIgogICAgKQogICAgYXNzZXJ0IGxlbihjaGlsZHJlbikgPT0gMwogICAgYXNzZXJ0IHN1bSgKICAgICAgICBhZnRlci50b3BvbG9neS5mYWNlX3BvbHlnb24oZmFjZV9pZCkuYXJlYQogICAgICAgIGZvciBjaGlsZCBpbiBjaGlsZHJlbgogICAgICAgIGZvciBmYWNlX2lkIGluIGNoaWxkLmZhY2VfaWRzCiAgICApID09IHB5dGVzdC5hcHByb3goMTgwMCkKCgpkZWYgdGVzdF9tZXJnZV9hZGphY2VudF9zaWJsaW5nc19wcmVzZXJ2ZXNfZmlyc3RfdXVpZF9hbmRfYWRqYWNlbmN5KCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLlkIjlubbmtYvor5UiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEwMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTAwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICApLAogICAgKQogICAgcHJvamVjdCwgcGFyZW50ID0gY3JlYXRlX3RvcF9sZXZlbF9yZWdpb24oCiAgICAgICAgcHJvamVjdCwgUG9seWdvbigoKDAsIDApLCAoMTAwLCAwKSwgKDEwMCwgMTAwKSwgKDAsIDEwMCkpKSwgIuWbveWutiIsICLlm73lrrYiCiAgICApCiAgICBwcm9qZWN0LCBjaGlsZHJlbiA9IHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgIHByb2plY3QsCiAgICAgICAgcGFyZW50LmlkLAogICAgICAgIFtRUG9pbnRGKC0xMCwgNTApLCBRUG9pbnRGKDExMCwgNTApXSwKICAgICAgICAoIuWMl+ecgSIsICLljZfnnIEiKSwKICAgICAgICAi55yBIiwKICAgICkKICAgIGFzc2VydCByZWdpb25fYWRqYWNlbmN5KHByb2plY3QsIGNoaWxkcmVuWzBdLmlkKSA9PSAoY2hpbGRyZW5bMV0uaWQsKQoKICAgIG1lcmdlZF9wcm9qZWN0LCBtZXJnZWQgPSBtZXJnZV9zaWJsaW5nX3JlZ2lvbnMoCiAgICAgICAgcHJvamVjdCwgW2NoaWxkcmVuWzBdLmlkLCBjaGlsZHJlblsxXS5pZF0sICLlkIjlubbnnIEiCiAgICApCgogICAgYXNzZXJ0IG1lcmdlZC5pZCA9PSBjaGlsZHJlblswXS5pZAogICAgYXNzZXJ0IG1lcmdlZC5uYW1lID09ICLlkIjlubbnnIEiCiAgICBhc3NlcnQgbm90IG1lcmdlZF9wcm9qZWN0LnJlZ2lvbnNbY2hpbGRyZW5bMV0uaWRdLnZpc2libGUKICAgIGFzc2VydCBtZXJnZWRfcHJvamVjdC50b3BvbG9neS5mYWNlX3BvbHlnb24obWVyZ2VkLmZhY2VfaWRzWzBdKS5hcmVhID09IHB5dGVzdC5hcHByb3goMTAwMDApCiAgICBhc3NlcnQgcmVnaW9uX2FkamFjZW5jeShtZXJnZWRfcHJvamVjdCwgbWVyZ2VkLmlkKSA9PSAoKQoKCmRlZiB0ZXN0X21lcmdlX211bHRpcGxlX2FkamFjZW50X3NpYmxpbmdzX2ludG9fb25lX3JlZ2lvbigpOgogICAgcHJvamVjdCA9IFByb2plY3QoCiAgICAgICAgbmFtZT0i5om56YeP5ZCI5bm25rWL6K+VIiwKICAgICAgICB3b3JsZF93aWR0aF9rbT0xMjAsCiAgICAgICAgd29ybGRfaGVpZ2h0X2ttPTEyMCwKICAgICAgICBoaWVyYXJjaHlfbGV2ZWxzPSgKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MCwgbmFtZT0i5Zu95a6257qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuWbveWutiIpLAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0xLCBuYW1lPSLnnIHnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i55yBIiksCiAgICAgICAgKSwKICAgICkKICAgIHByb2plY3QsIHBhcmVudCA9IGNyZWF0ZV90b3BfbGV2ZWxfcmVnaW9uKAogICAgICAgIHByb2plY3QsCiAgICAgICAgUG9seWdvbigoKDAsIDApLCAoMTAwLCAwKSwgKDEwMCwgMTAwKSwgKDYwLCAxMDApLCAoNjAsIDQwKSwgKDQwLCA0MCksICg0MCwgMTAwKSwgKDAsIDEwMCkpKSwKICAgICAgICAi5Zu95a62IiwKICAgICAgICAi5Zu95a62IiwKICAgICkKICAgIHByb2plY3QsIGNoaWxkcmVuID0gc3BsaXRfcmVnaW9uX2ludG9fY2hpbGRyZW4oCiAgICAgICAgcHJvamVjdCwKICAgICAgICBwYXJlbnQuaWQsCiAgICAgICAgW1FQb2ludEYoLTEwLCAzMCksIFFQb2ludEYoMTEwLCA3MCksIFFQb2ludEYoLTEwLCA5MCldLAogICAgICAgIHR1cGxlKGYi55yBe2l9IiBmb3IgaSBpbiByYW5nZSgxLCA2KSksCiAgICAgICAgIuecgSIsCiAgICApCiAgICBtZXJnZWRfcHJvamVjdCwgbWVyZ2VkID0gbWVyZ2Vfc2libGluZ19yZWdpb25zKHByb2plY3QsIFtjaGlsZC5pZCBmb3IgY2hpbGQgaW4gY2hpbGRyZW5dKQogICAgYXNzZXJ0IG1lcmdlZC5pZCA9PSBjaGlsZHJlblswXS5pZAogICAgYXNzZXJ0IG1lcmdlZF9wcm9qZWN0LnRvcG9sb2d5LmZhY2VfcG9seWdvbihtZXJnZWQuZmFjZV9pZHNbMF0pLmFyZWEgPT0gcHl0ZXN0LmFwcHJveCg4ODAwKQogICAgYXNzZXJ0IGFsbChub3QgbWVyZ2VkX3Byb2plY3QucmVnaW9uc1tjaGlsZC5pZF0udmlzaWJsZSBmb3IgY2hpbGQgaW4gY2hpbGRyZW5bMTpdKQoKCmRlZiB0ZXN0X21lcmdlX25vbl9hZGphY2VudF9zaWJsaW5nc19jcmVhdGVzX211bHRpX2NvbXBvbmVudF9yZWdpb24oKToKICAgIHByb2plY3QgPSBQcm9qZWN0KAogICAgICAgIG5hbWU9IumdnuebuOmCu+WQiOW5tiIsCiAgICAgICAgd29ybGRfd2lkdGhfa209MTAwLAogICAgICAgIHdvcmxkX2hlaWdodF9rbT0xMDAsCiAgICAgICAgaGllcmFyY2h5X2xldmVscz0oCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTAsIG5hbWU9IuWbveWutue6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLlm73lrrYiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MSwgbmFtZT0i55yB57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuecgSIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBmaXJzdCA9IGNyZWF0ZV90b3BfbGV2ZWxfcmVnaW9uKAogICAgICAgIHByb2plY3QsIFBvbHlnb24oKCg1LCA1KSwgKDI1LCA1KSwgKDI1LCAyNSksICg1LCAyNSkpKSwgIueUsiIsICLnnIEiCiAgICApCiAgICBwcm9qZWN0LCBzZWNvbmQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoNjUsIDY1KSwgKDg1LCA2NSksICg4NSwgODUpLCAoNjUsIDg1KSkpLCAi5LmZIiwgIuecgSIKICAgICkKICAgIG1lcmdlZF9wcm9qZWN0LCBtZXJnZWQgPSBtZXJnZV9zaWJsaW5nX3JlZ2lvbnMocHJvamVjdCwgW2ZpcnN0LmlkLCBzZWNvbmQuaWRdLCAi55Sy5LmZIikKICAgIGFzc2VydCBtZXJnZWQuaWQgPT0gZmlyc3QuaWQKICAgIGFzc2VydCBtZXJnZWQubmFtZSA9PSAi55Sy5LmZIgogICAgYXNzZXJ0IGxlbihtZXJnZWQuZmFjZV9pZHMpID09IDIKICAgIGFzc2VydCBub3QgbWVyZ2VkX3Byb2plY3QucmVnaW9uc1tzZWNvbmQuaWRdLnZpc2libGUKICAgIGFzc2VydCBzdW0oCiAgICAgICAgbWVyZ2VkX3Byb2plY3QudG9wb2xvZ3kuZmFjZV9wb2x5Z29uKGZhY2VfaWQpLmFyZWEgZm9yIGZhY2VfaWQgaW4gbWVyZ2VkLmZhY2VfaWRzCiAgICApID09IHB5dGVzdC5hcHByb3goODAwKQoKCmRlZiB0ZXN0X21lcmdlX3Jpbmdfb2ZfcmVnaW9uc19wcmVzZXJ2ZXNfaG9sZV9yaW5nKCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdChuYW1lPSLmtJ7lkIjlubYiLCB3b3JsZF93aWR0aF9rbT0xMDAsIHdvcmxkX2hlaWdodF9rbT0xMDApCiAgICBwaWVjZXMgPSAoCiAgICAgICAgUG9seWdvbigoKDIwLCA2MCksICg4MCwgNjApLCAoODAsIDEwMCksICgyMCwgMTAwKSkpLAogICAgICAgIFBvbHlnb24oKCgyMCwgMCksICg4MCwgMCksICg4MCwgNDApLCAoMjAsIDQwKSkpLAogICAgICAgIFBvbHlnb24oKCgwLCA0MCksICg0MCwgNDApLCAoNDAsIDYwKSwgKDAsIDYwKSkpLAogICAgICAgIFBvbHlnb24oKCg2MCwgNDApLCAoMTAwLCA0MCksICgxMDAsIDYwKSwgKDYwLCA2MCkpKSwKICAgICkKICAgIHJlZ2lvbnMgPSBbXQogICAgZm9yIGluZGV4LCBwaWVjZSBpbiBlbnVtZXJhdGUocGllY2VzKToKICAgICAgICBwcm9qZWN0LCByZWdpb24gPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbihwcm9qZWN0LCBwaWVjZSwgZiLnjq97aW5kZXh9IiwgIuWMuuWfnyIpCiAgICAgICAgcmVnaW9ucy5hcHBlbmQocmVnaW9uKQogICAgbWVyZ2VkX3Byb2plY3QsIG1lcmdlZCA9IG1lcmdlX3NpYmxpbmdfcmVnaW9ucygKICAgICAgICBwcm9qZWN0LCBbcmVnaW9uLmlkIGZvciByZWdpb24gaW4gcmVnaW9uc10sICLluKbmtJ7ljLrln58iCiAgICApCiAgICBtZXJnZWRfc2hhcGUgPSBtZXJnZWRfcHJvamVjdC50b3BvbG9neS5mYWNlX3BvbHlnb24obWVyZ2VkLmZhY2VfaWRzWzBdKQogICAgYXNzZXJ0IGxlbihtZXJnZWRfc2hhcGUuaW50ZXJpb3JzKSA9PSAxCiAgICBhc3NlcnQgbWVyZ2VkX3NoYXBlLmFyZWEgPT0gcHl0ZXN0LmFwcHJveCg2NDAwKQoKCmRlZiB0ZXN0X2FkZF9yZWdpb25fY29tcG9uZW50X3ByZXNlcnZlc19vbmVfcmVnaW9uX25vZGVfYW5kX2ZhY2VzKCk6CiAgICBwcm9qZWN0LCByZWdpb24gPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBQcm9qZWN0KG5hbWU9IumjnuWcsOa1i+ivlSIsIHdvcmxkX3dpZHRoX2ttPTEwMCwgd29ybGRfaGVpZ2h0X2ttPTEwMCksCiAgICAgICAgUG9seWdvbigoKDEwLCAxMCksICg0MCwgMTApLCAoNDAsIDQwKSwgKDEwLCA0MCkpKSwKICAgICAgICAi5Zu95a62IiwKICAgICAgICAi5Zu95a62IiwKICAgICkKICAgIHVwZGF0ZWRfcHJvamVjdCwgdXBkYXRlZCA9IGFkZF9yZWdpb25fY29tcG9uZW50KAogICAgICAgIHByb2plY3QsIHJlZ2lvbi5pZCwgUG9seWdvbigoKDYwLCA2MCksICg3MCwgNjApLCAoNzAsIDcwKSwgKDYwLCA3MCkpKQogICAgKQogICAgYXNzZXJ0IHVwZGF0ZWQuaWQgPT0gcmVnaW9uLmlkCiAgICBhc3NlcnQgbGVuKHVwZGF0ZWQuZmFjZV9pZHMpID09IDIKICAgIGFzc2VydCBzdW0oCiAgICAgICAgdXBkYXRlZF9wcm9qZWN0LnRvcG9sb2d5LmZhY2VfcG9seWdvbihmYWNlX2lkKS5hcmVhIGZvciBmYWNlX2lkIGluIHVwZGF0ZWQuZmFjZV9pZHMKICAgICkgPT0gcHl0ZXN0LmFwcHJveCgxMDAwKQoKCmRlZiB0ZXN0X21vdmVfc2hhcmVkX3ZlcnRleF91cGRhdGVzX2JvdGhfZmFjZXNfYW5kX3JlamVjdHNfaW52YWxpZF9nZW9tZXRyeSgpOgogICAgcHJvamVjdCA9IFByb2plY3QoCiAgICAgICAgbmFtZT0i5YWx5Lqr6aG254K55rWL6K+VIiwKICAgICAgICB3b3JsZF93aWR0aF9rbT0xMDAsCiAgICAgICAgd29ybGRfaGVpZ2h0X2ttPTEwMCwKICAgICAgICBoaWVyYXJjaHlfbGV2ZWxzPSgKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MCwgbmFtZT0i5Zu95a6257qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuWbveWutiIpLAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0xLCBuYW1lPSLnnIHnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i55yBIiksCiAgICAgICAgKSwKICAgICkKICAgIHByb2plY3QsIHBhcmVudCA9IGNyZWF0ZV90b3BfbGV2ZWxfcmVnaW9uKAogICAgICAgIHByb2plY3QsIFBvbHlnb24oKCgwLCAwKSwgKDEwMCwgMCksICgxMDAsIDEwMCksICgwLCAxMDApKSksICLlm73lrrYiLCAi5Zu95a62IgogICAgKQogICAgcHJvamVjdCwgY2hpbGRyZW4gPSBzcGxpdF9yZWdpb25faW50b19jaGlsZHJlbigKICAgICAgICBwcm9qZWN0LCBwYXJlbnQuaWQsIFtRUG9pbnRGKC0xMCwgNTApLCBRUG9pbnRGKDExMCwgNTApXSwgKCLljJfnnIEiLCAi5Y2X55yBIiksICLnnIEiCiAgICApCiAgICBzaGFyZWRfdmVydGV4ID0gbmV4dCgKICAgICAgICB2ZXJ0ZXguaWQKICAgICAgICBmb3IgdmVydGV4IGluIHByb2plY3QudG9wb2xvZ3kudmVydGljZXMudmFsdWVzKCkKICAgICAgICBpZiBhYnModmVydGV4LngpIDwgMWUtOSBhbmQgYWJzKHZlcnRleC55IC0gNTApIDwgMWUtOQogICAgKQogICAgZnJvbSBhdGxhc3dlYXZlLmRvbWFpbi5nZW9tZXRyeSBpbXBvcnQgUG9pbnQKCiAgICBtb3ZlZCA9IG1vdmVfc2hhcmVkX3ZlcnRleChwcm9qZWN0LCBzaGFyZWRfdmVydGV4LCBQb2ludCgwLCA0NSkpCiAgICBhc3NlcnQgbW92ZWQudG9wb2xvZ3kudmVydGljZXNbc2hhcmVkX3ZlcnRleF0ueSA9PSA0NQogICAgYXNzZXJ0IHN1bSgKICAgICAgICBtb3ZlZC50b3BvbG9neS5mYWNlX3BvbHlnb24oY2hpbGQuZmFjZV9pZHNbMF0pLmFyZWEgZm9yIGNoaWxkIGluIGNoaWxkcmVuCiAgICApID09IHB5dGVzdC5hcHByb3goMTAwMDApCiAgICB3aXRoIHB5dGVzdC5yYWlzZXMoUmVnaW9uQ29tbWFuZEVycm9yKToKICAgICAgICBtb3ZlX3NoYXJlZF92ZXJ0ZXgocHJvamVjdCwgIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMCIsIFBvaW50KDAsIDApKQoKCmRlZiB0ZXN0X2luc2VydF92ZXJ0ZXhfb25fc2hhcmVkX2VkZ2VfdXBkYXRlc19ib3RoX3JpbmdzKCk6CiAgICBwcm9qZWN0ID0gUHJvamVjdCgKICAgICAgICBuYW1lPSLmj5LngrnmtYvor5UiLAogICAgICAgIHdvcmxkX3dpZHRoX2ttPTEwMCwKICAgICAgICB3b3JsZF9oZWlnaHRfa209MTAwLAogICAgICAgIGhpZXJhcmNoeV9sZXZlbHM9KAogICAgICAgICAgICBIaWVyYXJjaHlMZXZlbChvcmRlcj0wLCBuYW1lPSLlm73lrrbnuqciLCBkZWZhdWx0X3R5cGVfbmFtZT0i5Zu95a62IiksCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTEsIG5hbWU9Iuecgee6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLnnIEiKSwKICAgICAgICApLAogICAgKQogICAgcHJvamVjdCwgcGFyZW50ID0gY3JlYXRlX3RvcF9sZXZlbF9yZWdpb24oCiAgICAgICAgcHJvamVjdCwgUG9seWdvbigoKDAsIDApLCAoMTAwLCAwKSwgKDEwMCwgMTAwKSwgKDAsIDEwMCkpKSwgIuWbveWutiIsICLlm73lrrYiCiAgICApCiAgICBwcm9qZWN0LCBjaGlsZHJlbiA9IHNwbGl0X3JlZ2lvbl9pbnRvX2NoaWxkcmVuKAogICAgICAgIHByb2plY3QsIHBhcmVudC5pZCwgW1FQb2ludEYoLTEwLCA1MCksIFFQb2ludEYoMTEwLCA1MCldLCAoIuWMl+ecgSIsICLljZfnnIEiKSwgIuecgSIKICAgICkKICAgIGVkZ2VfdXNlcyA9IHByb2plY3QudG9wb2xvZ3kuZWRnZV91c2VzKHR1cGxlKGNoaWxkLmZhY2VfaWRzWzBdIGZvciBjaGlsZCBpbiBjaGlsZHJlbikpCiAgICBzaGFyZWRfZWRnZV9pZCA9IG5leHQoZWRnZV9pZCBmb3IgZWRnZV9pZCwgdXNlcyBpbiBlZGdlX3VzZXMuaXRlbXMoKSBpZiBsZW4odXNlcykgPT0gMikKICAgIGVkZ2UgPSBwcm9qZWN0LnRvcG9sb2d5LmVkZ2VzW3NoYXJlZF9lZGdlX2lkXQogICAgc3RhcnQgPSBwcm9qZWN0LnRvcG9sb2d5LnZlcnRpY2VzW2VkZ2Uuc3RhcnRfdmVydGV4X2lkXQogICAgZW5kID0gcHJvamVjdC50b3BvbG9neS52ZXJ0aWNlc1tlZGdlLmVuZF92ZXJ0ZXhfaWRdCiAgICBmcm9tIGF0bGFzd2VhdmUuZG9tYWluLmdlb21ldHJ5IGltcG9ydCBQb2ludAoKICAgIHVwZGF0ZWQgPSBpbnNlcnRfdmVydGV4X29uX2VkZ2UoCiAgICAgICAgcHJvamVjdCwgc2hhcmVkX2VkZ2VfaWQsIFBvaW50KChzdGFydC54ICsgZW5kLngpIC8gMiwgKHN0YXJ0LnkgKyBlbmQueSkgLyAyKQogICAgKQogICAgYXNzZXJ0IHNoYXJlZF9lZGdlX2lkIG5vdCBpbiB1cGRhdGVkLnRvcG9sb2d5LmVkZ2VzCiAgICBhc3NlcnQgc3VtKAogICAgICAgIHVwZGF0ZWQudG9wb2xvZ3kuZmFjZV9wb2x5Z29uKGNoaWxkLmZhY2VfaWRzWzBdKS5hcmVhIGZvciBjaGlsZCBpbiBjaGlsZHJlbgogICAgKSA9PSBweXRlc3QuYXBwcm94KDEwMDAwKQoKCmRlZiB0ZXN0X2RlbGV0ZV9pbnNlcnRlZF9zaGFyZWRfdmVydGV4X3Jlc3RvcmVzX2VkZ2VfY291bnRfYW5kX2FyZWEoKToKICAgIHByb2plY3QgPSBQcm9qZWN0KAogICAgICAgIG5hbWU9IuWIoOeCuea1i+ivlSIsCiAgICAgICAgd29ybGRfd2lkdGhfa209MTAwLAogICAgICAgIHdvcmxkX2hlaWdodF9rbT0xMDAsCiAgICAgICAgaGllcmFyY2h5X2xldmVscz0oCiAgICAgICAgICAgIEhpZXJhcmNoeUxldmVsKG9yZGVyPTAsIG5hbWU9IuWbveWutue6pyIsIGRlZmF1bHRfdHlwZV9uYW1lPSLlm73lrrYiKSwKICAgICAgICAgICAgSGllcmFyY2h5TGV2ZWwob3JkZXI9MSwgbmFtZT0i55yB57qnIiwgZGVmYXVsdF90eXBlX25hbWU9IuecgSIpLAogICAgICAgICksCiAgICApCiAgICBwcm9qZWN0LCBwYXJlbnQgPSBjcmVhdGVfdG9wX2xldmVsX3JlZ2lvbigKICAgICAgICBwcm9qZWN0LCBQb2x5Z29uKCgoMCwgMCksICgxMDAsIDApLCAoMTAwLCAxMDApLCAoMCwgMTAwKSkpLCAi5Zu95a62IiwgIuWbveWutiIKICAgICkKICAgIHByb2plY3QsIGNoaWxkcmVuID0gc3BsaXRfcmVnaW9uX2ludG9fY2hpbGRyZW4oCiAgICAgICAgcHJvamVjdCwgcGFyZW50LmlkLCBbUVBvaW50RigtMTAsIDUwKSwgUVBvaW50RigxMTAsIDUwKV0sICgi5YyX55yBIiwgIuWNl+ecgSIpLCAi55yBIgogICAgKQogICAgZWRnZV91c2VzID0gcHJvamVjdC50b3BvbG9neS5lZGdlX3VzZXModHVwbGUoY2hpbGQuZmFjZV9pZHNbMF0gZm9yIGNoaWxkIGluIGNoaWxkcmVuKSkKICAgIHNoYXJlZF9lZGdlX2lkID0gbmV4dChlZGdlX2lkIGZvciBlZGdlX2lkLCB1c2VzIGluIGVkZ2VfdXNlcy5pdGVtcygpIGlmIGxlbih1c2VzKSA9PSAyKQogICAgZWRnZSA9IHByb2plY3QudG9wb2xvZ3kuZWRnZXNbc2hhcmVkX2VkZ2VfaWRdCiAgICBzdGFydCA9IHByb2plY3QudG9wb2xvZ3kudmVydGljZXNbZWRnZS5zdGFydF92ZXJ0ZXhfaWRdCiAgICBlbmQgPSBwcm9qZWN0LnRvcG9sb2d5LnZlcnRpY2VzW2VkZ2UuZW5kX3ZlcnRleF9pZF0KICAgIGZyb20gYXRsYXN3ZWF2ZS5kb21haW4uZ2VvbWV0cnkgaW1wb3J0IFBvaW50CgogICAgaW5zZXJ0ZWQgPSBpbnNlcnRfdmVydGV4X29uX2VkZ2UoCiAgICAgICAgcHJvamVjdCwgc2hhcmVkX2VkZ2VfaWQsIFBvaW50KChzdGFydC54ICsgZW5kLngpIC8gMiwgKHN0YXJ0LnkgKyBlbmQueSkgLyAyKQogICAgKQogICAgbmV3X3ZlcnRleCA9IG5leHQoCiAgICAgICAgdmVydGV4LmlkCiAgICAgICAgZm9yIHZlcnRleCBpbiBpbnNlcnRlZC50b3BvbG9neS52ZXJ0aWNlcy52YWx1ZXMoKQogICAgICAgIGlmIGFicyh2ZXJ0ZXgueCAtIChzdGFydC54ICsgZW5kLngpIC8gMikgPCAxZS05CiAgICAgICAgYW5kIGFicyh2ZXJ0ZXgueSAtIChzdGFydC55ICsgZW5kLnkpIC8gMikgPCAxZS05CiAgICApCiAgICBkZWxldGVkID0gZGVsZXRlX3NpbXBsZV92ZXJ0ZXgoaW5zZXJ0ZWQsIG5ld192ZXJ0ZXgpCiAgICBhc3NlcnQgbmV3X3ZlcnRleCBub3QgaW4gZGVsZXRlZC50b3BvbG9neS52ZXJ0aWNlcwogICAgYXNzZXJ0IHN1bSgKICAgICAgICBkZWxldGVkLnRvcG9sb2d5LmZhY2VfcG9seWdvbihjaGlsZC5mYWNlX2lkc1swXSkuYXJlYSBmb3IgY2hpbGQgaW4gY2hpbGRyZW4KICAgICkgPT0gcHl0ZXN0LmFwcHJveCgxMDAwMCkK
+import pytest
+from PyQt6.QtCore import QPointF
+from shapely.geometry import Polygon
+
+from atlasweave.commands.region_commands import (
+    RegionCommandError,
+    add_region_component,
+    create_top_level_region,
+    delete_simple_vertex,
+    insert_vertex_on_edge,
+    merge_sibling_regions,
+    move_shared_vertex,
+    polygon_from_freehand,
+    preview_region_split,
+    region_adjacency,
+    split_region_into_children,
+    split_regions_in_batch,
+)
+from atlasweave.domain.hierarchy import HierarchyLevel
+from atlasweave.domain.project import Project
+from atlasweave.services.project_io import ProjectStore
+
+
+def test_create_top_level_region_returns_valid_immutable_snapshot(tmp_path):
+    project, region = create_top_level_region(
+        Project(name="命令测试"), Polygon(((10, 10), (40, 10), (25, 40))), "国家", "国家"
+    )
+
+    assert region.id in project.regions
+    assert len(project.topology.faces) == 1
+    assert project.topology.face_polygon(region.face_ids[0]).is_valid
+    path = tmp_path / "drawn.atlasweave"
+    ProjectStore().save(project, path)
+    loaded = ProjectStore().load(path)
+    assert loaded.project.regions[region.id].name == "国家"
+    assert loaded.project.topology.face_polygon(region.face_ids[0]).area == pytest.approx(450)
+
+
+def test_create_top_level_region_rejects_overlap_and_out_of_bounds():
+    project, _ = create_top_level_region(
+        Project(name="重叠测试"), Polygon(((10, 10), (40, 10), (25, 40))), "已有", "国家"
+    )
+    with pytest.raises(RegionCommandError, match="重叠"):
+        create_top_level_region(project, Polygon(((20, 15), (45, 15), (30, 35))), "重叠", "国家")
+    with pytest.raises(RegionCommandError, match="世界边界"):
+        create_top_level_region(
+            project, Polygon(((1190, 90), (1210, 90), (1190, 110))), "越界", "国家"
+        )
+
+
+def test_polygon_from_freehand_closes_and_simplifies_stroke():
+    polygon = polygon_from_freehand(
+        [
+            QPointF(10, 10),
+            QPointF(10.01, 10.01),
+            QPointF(40, 10),
+            QPointF(40, 40),
+            QPointF(10, 40),
+        ],
+        tolerance=0.05,
+    )
+
+    assert polygon.is_valid
+    assert polygon.exterior.is_ring
+    assert polygon.area == pytest.approx(900, abs=1)
+
+
+def test_split_region_creates_children_with_shared_edge():
+    project = Project(
+        name="切分测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((10, 10), (90, 10), (90, 90), (10, 90))), "国家", "国家"
+    )
+
+    split_project, children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+
+    assert len(children) == 2
+    assert not split_project.regions[parent.id].visible
+    assert all(child.parent_id == parent.id for child in children)
+    assert sum(
+        split_project.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(6400)
+    edge_uses = split_project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    assert any(len(uses) == 2 for uses in edge_uses.values())
+
+
+def test_split_preview_supports_multiple_pieces_and_next_level():
+    project = Project(
+        name="多段切分测试",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    u_shape = Polygon(
+        ((0, 0), (100, 0), (100, 100), (60, 100), (60, 40), (40, 40), (40, 100), (0, 100))
+    )
+    project, parent = create_top_level_region(project, u_shape, "国家", "国家")
+    cut = [QPointF(-10, 30), QPointF(110, 70), QPointF(-10, 90)]
+
+    preview = preview_region_split(project, parent.id, cut)
+    assert len(preview.pieces) == 5
+    assert preview.total_area == pytest.approx(u_shape.area)
+    split_project, children = split_region_into_children(
+        project, parent.id, cut, tuple(f"省{i}" for i in range(1, 6)), "省"
+    )
+
+    assert len(children) == 5
+    assert all(child.level_id == project.hierarchy_levels[1].id for child in children)
+    assert all(child.parent_id == parent.id for child in children)
+    edge_uses = split_project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    assert sum(len(uses) == 2 for uses in edge_uses.values()) >= 4
+
+
+def test_split_child_uses_next_level_and_rejects_existing_children():
+    project = Project(
+        name="层级切分测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((10, 10), (90, 10), (90, 90), (10, 90))), "国家", "国家"
+    )
+    project, provinces = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+
+    project, cities = split_region_into_children(
+        project,
+        provinces[0].id,
+        [QPointF(0, 30), QPointF(100, 30)],
+        ("北市", "南市"),
+        "市",
+    )
+    assert all(city.level_id == project.hierarchy_levels[2].id for city in cities)
+    with pytest.raises(RegionCommandError, match="不可见|已经包含子区域"):
+        split_region_into_children(
+            project,
+            provinces[0].id,
+            [QPointF(0, 20), QPointF(100, 20)],
+            ("重复市一", "重复市二"),
+            "市",
+        )
+
+
+def test_advanced_parent_resplit_hides_old_children_and_replaces_partition():
+    project = Project(
+        name="父级重切分",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, old_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("旧北", "旧南"),
+        "省",
+    )
+    after, new_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 30), QPointF(110, 30), QPointF(-10, 70)],
+        ("新一", "新二", "新三"),
+        "省",
+        allow_existing_children=True,
+    )
+    assert len(new_children) == 3
+    assert all(not after.regions[child.id].visible for child in old_children)
+    assert all(child.parent_id == parent.id for child in new_children)
+    assert sum(
+        after.topology.face_polygon(child.face_ids[0]).area for child in new_children
+    ) == pytest.approx(10000)
+
+
+def test_batch_split_applies_multiple_validated_steps_in_one_snapshot():
+    project = Project(
+        name="六区连续切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 60), (0, 60))), "国家", "国家"
+    )
+    first_project, first_children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 10), QPointF(110, 10)],
+        ("一省", "余下"),
+        "省",
+    )
+    remaining = first_children[1]
+    batch_steps = ((remaining.id, [QPointF(-10, 20), QPointF(110, 20)], ("二省", "余下二")),)
+    after_batch, created = split_regions_in_batch(first_project, batch_steps, "省")
+    assert len(created) == 2
+    assert sum(
+        after_batch.topology.face_polygon(face_id).area
+        for region in after_batch.regions.values()
+        if region.visible
+        for face_id in region.face_ids
+    ) == pytest.approx(6000)
+    assert all(region.parent_id in after_batch.regions for region in created)
+
+
+def test_single_polyline_can_create_six_sibling_regions():
+    project = Project(
+        name="六区切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 60), (0, 60))), "国家", "国家"
+    )
+    ys = (8, 16, 24, 32, 40, 48)
+    cut = [QPointF(-10 if index % 2 == 0 else 110, y) for index, y in enumerate(ys)]
+    after, children = split_region_into_children(
+        project, parent.id, cut, tuple(f"省{i}" for i in range(1, 7)), "省"
+    )
+    assert len(children) == 6
+    assert sum(
+        after.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(6000)
+    edge_uses = after.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    assert sum(len(uses) == 2 for uses in edge_uses.values()) >= 5
+
+
+def test_split_multi_component_parent_preserves_all_components():
+    project = Project(
+        name="多部件重切分",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+            HierarchyLevel(order=2, name="市级", default_type_name="市"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((5, 5), (35, 5), (35, 35), (5, 35))), "国家", "国家"
+    )
+    project, parent = add_region_component(
+        project, parent.id, Polygon(((65, 65), (95, 65), (95, 95), (65, 95)))
+    )
+    preview = preview_region_split(project, parent.id, [QPointF(-10, 20), QPointF(110, 20)])
+    assert len(preview.pieces) == 3
+    after, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 20), QPointF(110, 20)], ("甲", "乙", "飞地"), "省"
+    )
+    assert len(children) == 3
+    assert sum(
+        after.topology.face_polygon(face_id).area
+        for child in children
+        for face_id in child.face_ids
+    ) == pytest.approx(1800)
+
+
+def test_merge_adjacent_siblings_preserves_first_uuid_and_adjacency():
+    project = Project(
+        name="合并测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+    assert region_adjacency(project, children[0].id) == (children[1].id,)
+
+    merged_project, merged = merge_sibling_regions(
+        project, [children[0].id, children[1].id], "合并省"
+    )
+
+    assert merged.id == children[0].id
+    assert merged.name == "合并省"
+    assert not merged_project.regions[children[1].id].visible
+    assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(10000)
+    assert region_adjacency(merged_project, merged.id) == ()
+
+
+def test_merge_multiple_adjacent_siblings_into_one_region():
+    project = Project(
+        name="批量合并测试",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project,
+        Polygon(((0, 0), (100, 0), (100, 100), (60, 100), (60, 40), (40, 40), (40, 100), (0, 100))),
+        "国家",
+        "国家",
+    )
+    project, children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 30), QPointF(110, 70), QPointF(-10, 90)],
+        tuple(f"省{i}" for i in range(1, 6)),
+        "省",
+    )
+    merged_project, merged = merge_sibling_regions(project, [child.id for child in children])
+    assert merged.id == children[0].id
+    assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(8800)
+    assert all(not merged_project.regions[child.id].visible for child in children[1:])
+
+
+def test_merge_non_adjacent_siblings_creates_multi_component_region():
+    project = Project(
+        name="非相邻合并",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, first = create_top_level_region(
+        project, Polygon(((5, 5), (25, 5), (25, 25), (5, 25))), "甲", "省"
+    )
+    project, second = create_top_level_region(
+        project, Polygon(((65, 65), (85, 65), (85, 85), (65, 85))), "乙", "省"
+    )
+    merged_project, merged = merge_sibling_regions(project, [first.id, second.id], "甲乙")
+    assert merged.id == first.id
+    assert merged.name == "甲乙"
+    assert len(merged.face_ids) == 2
+    assert not merged_project.regions[second.id].visible
+    assert sum(
+        merged_project.topology.face_polygon(face_id).area for face_id in merged.face_ids
+    ) == pytest.approx(800)
+
+
+def test_merge_ring_of_regions_preserves_hole_ring():
+    project = Project(name="洞合并", world_width_km=100, world_height_km=100)
+    pieces = (
+        Polygon(((20, 60), (80, 60), (80, 100), (20, 100))),
+        Polygon(((20, 0), (80, 0), (80, 40), (20, 40))),
+        Polygon(((0, 40), (40, 40), (40, 60), (0, 60))),
+        Polygon(((60, 40), (100, 40), (100, 60), (60, 60))),
+    )
+    regions = []
+    for index, piece in enumerate(pieces):
+        project, region = create_top_level_region(project, piece, f"环{index}", "区域")
+        regions.append(region)
+    merged_project, merged = merge_sibling_regions(
+        project, [region.id for region in regions], "带洞区域"
+    )
+    merged_shape = merged_project.topology.face_polygon(merged.face_ids[0])
+    assert len(merged_shape.interiors) == 1
+    assert merged_shape.area == pytest.approx(6400)
+
+
+def test_add_region_component_preserves_one_region_node_and_faces():
+    project, region = create_top_level_region(
+        Project(name="飞地测试", world_width_km=100, world_height_km=100),
+        Polygon(((10, 10), (40, 10), (40, 40), (10, 40))),
+        "国家",
+        "国家",
+    )
+    updated_project, updated = add_region_component(
+        project, region.id, Polygon(((60, 60), (70, 60), (70, 70), (60, 70)))
+    )
+    assert updated.id == region.id
+    assert len(updated.face_ids) == 2
+    assert sum(
+        updated_project.topology.face_polygon(face_id).area for face_id in updated.face_ids
+    ) == pytest.approx(1000)
+
+
+def test_move_shared_vertex_updates_both_faces_and_rejects_invalid_geometry():
+    project = Project(
+        name="共享顶点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    shared_vertex = next(
+        vertex.id
+        for vertex in project.topology.vertices.values()
+        if abs(vertex.x) < 1e-9 and abs(vertex.y - 50) < 1e-9
+    )
+    from atlasweave.domain.geometry import Point
+
+    moved = move_shared_vertex(project, shared_vertex, Point(0, 45))
+    assert moved.topology.vertices[shared_vertex].y == 45
+    assert sum(
+        moved.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)
+    with pytest.raises(RegionCommandError):
+        move_shared_vertex(project, "00000000-0000-4000-8000-000000000000", Point(0, 0))
+
+
+def test_insert_vertex_on_shared_edge_updates_both_rings():
+    project = Project(
+        name="插点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    edge_uses = project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    shared_edge_id = next(edge_id for edge_id, uses in edge_uses.items() if len(uses) == 2)
+    edge = project.topology.edges[shared_edge_id]
+    start = project.topology.vertices[edge.start_vertex_id]
+    end = project.topology.vertices[edge.end_vertex_id]
+    from atlasweave.domain.geometry import Point
+
+    updated = insert_vertex_on_edge(
+        project, shared_edge_id, Point((start.x + end.x) / 2, (start.y + end.y) / 2)
+    )
+    assert shared_edge_id not in updated.topology.edges
+    assert sum(
+        updated.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)
+
+
+def test_delete_inserted_shared_vertex_restores_edge_count_and_area():
+    project = Project(
+        name="删点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    edge_uses = project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    shared_edge_id = next(edge_id for edge_id, uses in edge_uses.items() if len(uses) == 2)
+    edge = project.topology.edges[shared_edge_id]
+    start = project.topology.vertices[edge.start_vertex_id]
+    end = project.topology.vertices[edge.end_vertex_id]
+    from atlasweave.domain.geometry import Point
+
+    inserted = insert_vertex_on_edge(
+        project, shared_edge_id, Point((start.x + end.x) / 2, (start.y + end.y) / 2)
+    )
+    new_vertex = next(
+        vertex.id
+        for vertex in inserted.topology.vertices.values()
+        if abs(vertex.x - (start.x + end.x) / 2) < 1e-9
+        and abs(vertex.y - (start.y + end.y) / 2) < 1e-9
+    )
+    deleted = delete_simple_vertex(inserted, new_vertex)
+    assert new_vertex not in deleted.topology.vertices
+    assert sum(
+        deleted.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)

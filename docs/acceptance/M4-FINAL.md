@@ -1,1 +1,46 @@
-IyBNNCDlrozmlbTmlLblj6PpqozmlLYKCuaXpeacn++8mjIwMjYtMTAtMjYKCiMjIOS6pOS7mOiMg+WbtAoKTTQg5bel56iL6IO95Yqb6KaG55uW5YWx5Lqr6L6544CB5YiH5YiG44CB5a2Q5Yy65Z+f44CB5ZCI5bm244CB6aOe5Zyw44CB5aSa6YOo5Lu25ZKM6YK75o6l77yaCgotIOWkmuauteWIh+WIhumihOiniOWSjOi/nue7reWFreS4quWQjOe6p+WMuuWfn++8mwotIOWkmumDqOS7tueItumdouWIh+WIhuS4jumrmOe6p+eItue6p+mHjeWIh+WIhu+8mwotIOW4pua0ni/lpJrpg6jku7bniLbpnaLkv53mjIHlhoXnjq/lkozpnaLnp6/lrojmgZLvvJsKLSDnm7jpgrvlkozpnZ7nm7jpgrvlkIznuqfljLrln5/lkIjlubbvvJsKLSDlkIjlubblkI7nmoTlpJrpg6jku7bljLrln5/lkozmlbDlgLzlsZ7mgKfnrZbnlaXvvJsKLSDljLrln5/pg6jku7Yv6aOe5Zyw55S75biD5YWl5Y+j77ybCi0g5YWx5Lqr6aG254K55ouW5Yqo44CB5YWx5Lqr6L655o+S5YWl6aG254K544CB5pmu6YCaIGRlZ3JlZS10d28g6aG254K55Yig6Zmk77ybCi0g5omA5pyJ5pON5L2c6L+b5YWl57uf5LiA5b+r54Wn5pKk6ZSAL+mHjeWBmuW5tuaUr+aMgeS/neWtmOWbnuivu++8mwotIOWksei0peaXtuS/neeVmeWOn+W/q+eFp+W5tuWGmeWFpemXrumimOmdouadv+WSjOaTjeS9nOaXpeW/l+OAggoKIyMg6Ieq5Yqo5YyW6K+B5o2uCgrlnKggTGludXggLyBQeXRob24gMy4xMiAvIFB5UXQ2IOemu+Wxj+eOr+Wig+aJp+ihjO+8mgoKLSBgcnVmZiBjaGVjayAuYAotIGBydWZmIGZvcm1hdCAtLWNoZWNrIC5gCi0gYHB5dGVzdCAtcWAKLSDlvZPliY3mnKzlnLDlm57lvZLvvJoxNjcg6aG56YCa6L+H77ybCi0g5ouT5omR5LiT6aG577ya5YWt5Yy66Z2i56ev5a6I5oGS44CB54i257qn6YeN5YiH5YiG44CBTXVsdGlQb2x5Z29uIOWQiOW5tuOAgeWFseS6q+i+ueaPkuWFpS/mi5bliqgv5Yig6Zmk77ybCi0gcHl0ZXN0LXF077ya6aG254K557yW6L6R5qih5byP44CBU2hpZnQr54K55Ye75YWx5Lqr6L655o+S54K544CBRGVsZXRlIOWIoOmZpOmAieS4remhtueCue+8mwotIGB1diBidWlsZCAtLW5vLWJ1aWxkLWlzb2xhdGlvbmAKLSDni6znq4sgd2hlZWwg5a6J6KOF5ZKMIGBweXRob24gLW0gYXRsYXN3ZWF2ZSAtLXNtb2tlLXRlc3RgCgroh6rliqjljJbnu5Pmnpzlv4Xpobvku6XmnKzmrKHov5znq6/mj5DkuqTlkowgQ0kg6L+Q6KGM6K6w5b2V5Li65YeG77yM5LiN6IO95rK/55So5pen5o+Q5Lqk6K+B5o2u44CCCgojIyBXaW5kb3dzIDEwLzExIOS6uuW3pemqjOaUtgoKMS4g5paw5bu66Iez5bCRIDEyMDAgw5cgODAwIGttIOW3peeoi+W5tuWIm+W7uuS4gOS4quWbveWutue6p+WMuuWfn+OAggoyLiDnlKjkupTmnaHliIfliIbnur/ov57nu63liJvlu7rlha3kuKrnnIHnuqfljLrln5/vvIzmo4Dmn6Xml6DnvJ3pmpnjgIHml6Dph43lj6DjgIHniLbnuqfkuIDoh7TjgIIKMy4g6YCJ5oup54i257qn5omn6KGM4oCc6auY57qn77ya6YeN5paw5YiH5YiG54i257qn4oCd77yM56Gu6K6k5pen5a2Q5Yy65Z+f6ZqQ6JeP44CB5pen5b+r54Wn5Y+v5pKk6ZSA44CCCjQuIOmAieaLqeS4pOS4quS4jeebuOmCu+WQjOe6p+WMuuWfn++8jOWQiOW5tuW5tuehruiupOWMuuWfn+agkeWPquS/neeVmeS4gOS4quiKgueCueOAgemDqOS7tuaVsOS4uiAy44CCCjUuIOmAieaLqeWFseS6q+i+ue+8jOaMiSBWIOi/m+WFpemhtueCuee8lui+ke+8m1NoaWZ0K+eCueWHu+i+uee6v+aPkueCue+8jOaLluWKqOmhtueCue+8jERlbGV0ZSDliKDpmaTmma7pgJrkuK3pl7TngrnjgIIKNi4g5qOA5p+l5Lik5L6n5Yy65Z+f5ZCM5q2l44CB6Z2i56ev5pu05paw44CB6YK75o6l5L+d5oyB44CB5pKk6ZSAL+mHjeWBmuWSjOS/neWtmOmHjeW8gOOAggo3LiDlnKggV2luZG93cyAxMC8xMSDpq5ggRFBJIOiuvue9ruS4i+mHjeWkjem8oOagh+WRveS4reOAgeWvueivneahhuOAgeiPnOWNleWSjOW/q+aNt+mUrua1geeoi+OAggo4LiDlsJ3or5XplIHlrprljLrln5/jgIHlj6ror7vlt6XnqIvjgIHnq6/ngrnpobbngrnlkozpnZ7ms5Xlh6DkvZXvvIznoa7orqTljp/lt6XnqIvkuI3mlLnlj5jkuJTplJnor6/lj6/or7vjgIIKCuiHquWKqOWMlua1i+ivleWSjOemu+Wxj+aIquWbvuS4jeiDveabv+S7oyBXaW5kb3dzIOWunuacuumqjOaUtuOAguWujOaIkCBNNCDlt6XnqIvmlLblj6PlkI7vvIzkuIvkuIDova7ov5vlhaUgTTUtMDHjgIIKCg==
+# M4 完整收口验收
+
+日期：2026-10-26
+
+## 交付范围
+
+M4 工程能力覆盖共享边、切分、子区域、合并、飞地、多部件和邻接：
+
+- 多段切分预览和连续六个同级区域；
+- 多部件父面切分与高级父级重切分；
+- 带洞/多部件父面保持内环和面积守恒；
+- 相邻和非相邻同级区域合并；
+- 合并后的多部件区域和数值属性策略；
+- 区域部件/飞地画布入口；
+- 共享顶点拖动、共享边插入顶点、普通 degree-two 顶点删除；
+- 所有操作进入统一快照撤销/重做并支持保存回读；
+- 失败时保留原快照并写入问题面板和操作日志。
+
+## 自动化证据
+
+在 Linux / Python 3.12 / PyQt6 离屏环境执行：
+
+- `ruff check .`
+- `ruff format --check .`
+- `pytest -q`
+- 当前本地回归：167 项通过；
+- 拓扑专项：六区面积守恒、父级重切分、MultiPolygon 合并、共享边插入/拖动/删除；
+- pytest-qt：顶点编辑模式、Shift+点击共享边插点、Delete 删除选中顶点；
+- `uv build --no-build-isolation`
+- 独立 wheel 安装和 `python -m atlasweave --smoke-test`
+
+自动化结果必须以本次远端提交和 CI 运行记录为准，不能沿用旧提交证据。
+
+## Windows 10/11 人工验收
+
+1. 新建至少 1200 × 800 km 工程并创建一个国家级区域。
+2. 用五条切分线连续创建六个省级区域，检查无缝隙、无重叠、父级一致。
+3. 选择父级执行“高级：重新切分父级”，确认旧子区域隐藏、旧快照可撤销。
+4. 选择两个不相邻同级区域，合并并确认区域树只保留一个节点、部件数为 2。
+5. 选择共享边，按 V 进入顶点编辑；Shift+点击边线插点，拖动顶点，Delete 删除普通中间点。
+6. 检查两侧区域同步、面积更新、邻接保持、撤销/重做和保存重开。
+7. 在 Windows 10/11 高 DPI 设置下重复鼠标命中、对话框、菜单和快捷键流程。
+8. 尝试锁定区域、只读工程、端点顶点和非法几何，确认原工程不改变且错误可读。
+
+自动化测试和离屏截图不能替代 Windows 实机验收。完成 M4 工程收口后，下一轮进入 M5-01。
+
