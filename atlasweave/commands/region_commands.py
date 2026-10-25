@@ -485,3 +485,109 @@ def region_adjacency(project: Project, region_id: str) -> tuple[str, ...]:
     return tuple(
         sorted(item.id for item in siblings if target_neighbors.intersection(item.face_ids))
     )
+
+
+def add_region_component(
+    project: Project, region_id: str, polygon: Polygon
+) -> tuple[Project, Region]:
+    """Add a real island/enclave face to an existing visible region."""
+    region = project.regions.get(region_id)
+    if region is None:
+        raise RegionCommandError("请选择要添加部件的区域。")
+    if region.locked:
+        raise RegionCommandError(f"区域“{region.name}”已锁定，不能添加部件。")
+    if not polygon.is_valid or len(polygon.interiors):
+        raise RegionCommandError("部件必须是无洞的有效多边形。")
+    if polygon.area <= project.tolerances.minimum_face_area:
+        raise RegionCommandError("部件面积为零或小于工程容差。")
+    min_x, min_y, max_x, max_y = polygon.bounds
+    if min_x < 0 or min_y < 0 or max_x > project.world_width_km or max_y > project.world_height_km:
+        raise RegionCommandError("部件不能超出世界边界。")
+    if region.parent_id is not None:
+        parent = project.regions.get(region.parent_id)
+        if parent is None or not parent.face_ids:
+            raise RegionCommandError("区域父级几何不存在。")
+        parent_polygon = unary_union(
+            project.topology.face_polygon(face_id) for face_id in parent.face_ids
+        )
+        if not parent_polygon.covers(polygon):
+            raise RegionCommandError("部件必须完全位于父区域内。")
+    for other in project.regions.values():
+        if not other.visible or other.id == region.id:
+            continue
+        for face_id in other.face_ids:
+            if (
+                project.topology.face_polygon(face_id).intersection(polygon).area
+                > project.tolerances.minimum_face_area
+            ):
+                raise RegionCommandError(f"部件与已有区域“{other.name}”重叠。")
+
+    vertices = dict(project.topology.vertices)
+    edges = dict(project.topology.edges)
+    half_edges = dict(project.topology.half_edges)
+    rings = dict(project.topology.rings)
+    faces = dict(project.topology.faces)
+    vertex_by_coordinate = {
+        (round(vertex.x, 12), round(vertex.y, 12)): vertex.id for vertex in vertices.values()
+    }
+    edge_by_key = {}
+    for edge in edges.values():
+        start = vertices[edge.start_vertex_id].point.as_tuple()
+        end = vertices[edge.end_vertex_id].point.as_tuple()
+        edge_by_key[tuple(sorted((start, end)))] = edge.id
+
+    def vertex_id(coordinate: tuple[float, float]) -> str:
+        coordinate = (round(coordinate[0], 12), round(coordinate[1], 12))
+        if coordinate not in vertex_by_coordinate:
+            vertex = Vertex(x=coordinate[0], y=coordinate[1])
+            vertices[vertex.id] = vertex
+            vertex_by_coordinate[coordinate] = vertex.id
+        return vertex_by_coordinate[coordinate]
+
+    points = list(orient(polygon, sign=1.0).exterior.coords)[:-1]
+    half_ids = []
+    for index, start in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        start_key = (round(start[0], 12), round(start[1], 12))
+        end_key = (round(end[0], 12), round(end[1], 12))
+        edge_key = tuple(sorted((start_key, end_key)))
+        start_vertex = vertex_id(start_key)
+        end_vertex = vertex_id(end_key)
+        edge_id = edge_by_key.get(edge_key)
+        if edge_id is None:
+            edge = Edge(start_vertex_id=start_vertex, end_vertex_id=end_vertex)
+            edges[edge.id] = edge
+            edge_by_key[edge_key] = edge.id
+        else:
+            edge = edges[edge_id]
+        reversed_edge = edge.start_vertex_id == end_vertex and edge.end_vertex_id == start_vertex
+        if not reversed_edge and (
+            edge.start_vertex_id != start_vertex or edge.end_vertex_id != end_vertex
+        ):
+            raise RegionCommandError("部件无法建立共享边拓扑。")
+        half = HalfEdge(edge_id=edge.id, reversed=reversed_edge)
+        half_edges[half.id] = half
+        half_ids.append(half.id)
+    ring = Ring(half_edge_ids=tuple(half_ids))
+    face = Face(outer_ring_id=ring.id)
+    rings[ring.id] = ring
+    faces[face.id] = face
+    topology = replace(
+        project.topology,
+        vertices=vertices,
+        edges=edges,
+        half_edges=half_edges,
+        rings=rings,
+        faces=faces,
+        geometry_version=project.topology.geometry_version + 1,
+    )
+    updated = replace(region, face_ids=(*region.face_ids, face.id))
+    return (
+        replace(
+            project,
+            regions={**project.regions, region.id: updated},
+            topology=topology,
+            modified_at=datetime.now(UTC),
+        ),
+        updated,
+    )

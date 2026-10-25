@@ -4,6 +4,7 @@ from shapely.geometry import Polygon
 
 from atlasweave.commands.region_commands import (
     RegionCommandError,
+    add_region_component,
     create_top_level_region,
     merge_sibling_regions,
     polygon_from_freehand,
@@ -223,3 +224,20 @@ def test_merge_multiple_adjacent_siblings_into_one_region():
     assert merged.id == children[0].id
     assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(8800)
     assert all(not merged_project.regions[child.id].visible for child in children[1:])
+
+
+def test_add_region_component_preserves_one_region_node_and_faces():
+    project, region = create_top_level_region(
+        Project(name="飞地测试", world_width_km=100, world_height_km=100),
+        Polygon(((10, 10), (40, 10), (40, 40), (10, 40))),
+        "国家",
+        "国家",
+    )
+    updated_project, updated = add_region_component(
+        project, region.id, Polygon(((60, 60), (70, 60), (70, 70), (60, 70)))
+    )
+    assert updated.id == region.id
+    assert len(updated.face_ids) == 2
+    assert sum(
+        updated_project.topology.face_polygon(face_id).area for face_id in updated.face_ids
+    ) == pytest.approx(1000)
