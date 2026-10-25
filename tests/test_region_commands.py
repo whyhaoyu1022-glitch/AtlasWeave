@@ -7,6 +7,7 @@ from atlasweave.commands.region_commands import (
     add_region_component,
     create_top_level_region,
     merge_sibling_regions,
+    move_shared_vertex,
     polygon_from_freehand,
     preview_region_split,
     region_adjacency,
@@ -241,3 +242,35 @@ def test_add_region_component_preserves_one_region_node_and_faces():
     assert sum(
         updated_project.topology.face_polygon(face_id).area for face_id in updated.face_ids
     ) == pytest.approx(1000)
+
+
+def test_move_shared_vertex_updates_both_faces_and_rejects_invalid_geometry():
+    project = Project(
+        name="共享顶点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    shared_vertex = next(
+        vertex.id
+        for vertex in project.topology.vertices.values()
+        if abs(vertex.x) < 1e-9 and abs(vertex.y - 50) < 1e-9
+    )
+    from atlasweave.domain.geometry import Point
+
+    moved = move_shared_vertex(project, shared_vertex, Point(0, 45))
+    assert moved.topology.vertices[shared_vertex].y == 45
+    assert sum(
+        moved.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)
+    with pytest.raises(RegionCommandError):
+        move_shared_vertex(project, "00000000-0000-4000-8000-000000000000", Point(0, 0))

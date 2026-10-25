@@ -591,3 +591,52 @@ def add_region_component(
         ),
         updated,
     )
+
+
+def move_shared_vertex(project: Project, vertex_id: str, point: Point) -> Project:
+    """Move one shared topology vertex and validate every affected region."""
+    if vertex_id not in project.topology.vertices:
+        raise RegionCommandError("要移动的顶点不存在。")
+    candidate_topology = project.topology.with_vertex_position(vertex_id, point)
+    affected_faces = []
+    for face_id, face in candidate_topology.faces.items():
+        ring = candidate_topology.rings.get(face.outer_ring_id)
+        if ring is None:
+            continue
+        for half_id in ring.half_edge_ids:
+            edge = candidate_topology.edges[candidate_topology.half_edges[half_id].edge_id]
+            if vertex_id in {edge.start_vertex_id, edge.end_vertex_id}:
+                affected_faces.append(face_id)
+                break
+    tolerance = project.tolerances
+    for face_id in affected_faces:
+        polygon = candidate_topology.face_polygon(face_id)
+        if not polygon.is_valid or polygon.area <= tolerance.minimum_face_area:
+            raise RegionCommandError("移动顶点会造成自交或无效面积。")
+    candidate = replace(project, topology=candidate_topology, modified_at=datetime.now(UTC))
+    for region in candidate.regions.values():
+        if not region.visible:
+            continue
+        polygons = [candidate.topology.face_polygon(face_id) for face_id in region.face_ids]
+        if region.parent_id is not None and region.parent_id in candidate.regions:
+            parent = candidate.regions[region.parent_id]
+            parent_shape = unary_union(
+                [candidate.topology.face_polygon(face_id) for face_id in parent.face_ids]
+            )
+            if not all(parent_shape.covers(shape) for shape in polygons):
+                raise RegionCommandError("移动顶点会使子区域越出父区域。")
+        for other in candidate.regions.values():
+            if (
+                other.id != region.id
+                and other.visible
+                and other.level_id == region.level_id
+                and other.parent_id == region.parent_id
+            ):
+                for shape in polygons:
+                    for other_face in other.face_ids:
+                        if (
+                            shape.intersection(candidate.topology.face_polygon(other_face)).area
+                            > tolerance.minimum_face_area
+                        ):
+                            raise RegionCommandError("移动顶点会造成同级区域重叠。")
+    return candidate
