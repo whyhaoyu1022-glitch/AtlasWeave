@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from math import hypot
 
 from shapely.errors import GEOSException
 from shapely.geometry import LineString, Polygon
+from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry.polygon import orient
 from shapely.ops import split as split_geometry
 from shapely.ops import unary_union
@@ -639,4 +641,78 @@ def move_shared_vertex(project: Project, vertex_id: str, point: Point) -> Projec
                             > tolerance.minimum_face_area
                         ):
                             raise RegionCommandError("移动顶点会造成同级区域重叠。")
+    return candidate
+
+
+def insert_vertex_on_edge(project: Project, edge_id: str, point: Point) -> Project:
+    """Insert one shared vertex into every ring that references an edge."""
+    edge = project.topology.edges.get(edge_id)
+    if edge is None:
+        raise RegionCommandError("要编辑的边不存在。")
+    start = project.topology.vertices[edge.start_vertex_id].point
+    end = project.topology.vertices[edge.end_vertex_id].point
+    segment = LineString((start.as_tuple(), end.as_tuple()))
+    if segment.distance(ShapelyPoint(point.as_tuple())) > project.tolerances.minimum_edge_length:
+        raise RegionCommandError("新顶点必须位于目标边上。")
+    if (
+        hypot(point.x - start.x, point.y - start.y) <= project.tolerances.minimum_edge_length
+        or hypot(point.x - end.x, point.y - end.y) <= project.tolerances.minimum_edge_length
+    ):
+        raise RegionCommandError("新顶点不能与边端点重合。")
+
+    vertices = dict(project.topology.vertices)
+    edges = dict(project.topology.edges)
+    half_edges = dict(project.topology.half_edges)
+    rings = dict(project.topology.rings)
+    new_vertex = Vertex(x=point.x, y=point.y)
+    vertices[new_vertex.id] = new_vertex
+    first_edge = Edge(start_vertex_id=edge.start_vertex_id, end_vertex_id=new_vertex.id)
+    second_edge = Edge(start_vertex_id=new_vertex.id, end_vertex_id=edge.end_vertex_id)
+    edges[first_edge.id] = first_edge
+    edges[second_edge.id] = second_edge
+    touched_rings = 0
+    old_half_ids = []
+    for ring_id, ring in project.topology.rings.items():
+        new_half_ids = []
+        changed = False
+        for half_id in ring.half_edge_ids:
+            half = project.topology.half_edges[half_id]
+            if half.edge_id != edge_id:
+                new_half_ids.append(half_id)
+                continue
+            changed = True
+            touched_rings += 1
+            old_half_ids.append(half_id)
+            if half.reversed:
+                left = HalfEdge(edge_id=second_edge.id, reversed=True)
+                right = HalfEdge(edge_id=first_edge.id, reversed=True)
+            else:
+                left = HalfEdge(edge_id=first_edge.id)
+                right = HalfEdge(edge_id=second_edge.id)
+            half_edges[left.id] = left
+            half_edges[right.id] = right
+            new_half_ids.extend((left.id, right.id))
+        if changed:
+            rings[ring_id] = replace(ring, half_edge_ids=tuple(new_half_ids))
+    if touched_rings == 0:
+        raise RegionCommandError("目标边没有被任何面引用。")
+    edges.pop(edge_id, None)
+    for half_id in old_half_ids:
+        half_edges.pop(half_id, None)
+    topology = replace(
+        project.topology,
+        vertices=vertices,
+        edges=edges,
+        half_edges=half_edges,
+        rings=rings,
+        geometry_version=project.topology.geometry_version + 1,
+    )
+    candidate = replace(project, topology=topology, modified_at=datetime.now(UTC))
+    for region in candidate.regions.values():
+        if not region.visible:
+            continue
+        for face_id in region.face_ids:
+            polygon = candidate.topology.face_polygon(face_id)
+            if not polygon.is_valid or polygon.area <= project.tolerances.minimum_face_area:
+                raise RegionCommandError("插入顶点会造成无效几何。")
     return candidate

@@ -6,6 +6,7 @@ from atlasweave.commands.region_commands import (
     RegionCommandError,
     add_region_component,
     create_top_level_region,
+    insert_vertex_on_edge,
     merge_sibling_regions,
     move_shared_vertex,
     polygon_from_freehand,
@@ -274,3 +275,35 @@ def test_move_shared_vertex_updates_both_faces_and_rejects_invalid_geometry():
     ) == pytest.approx(10000)
     with pytest.raises(RegionCommandError):
         move_shared_vertex(project, "00000000-0000-4000-8000-000000000000", Point(0, 0))
+
+
+def test_insert_vertex_on_shared_edge_updates_both_rings():
+    project = Project(
+        name="插点测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project, parent.id, [QPointF(-10, 50), QPointF(110, 50)], ("北省", "南省"), "省"
+    )
+    edge_uses = project.topology.edge_uses(tuple(child.face_ids[0] for child in children))
+    shared_edge_id = next(edge_id for edge_id, uses in edge_uses.items() if len(uses) == 2)
+    edge = project.topology.edges[shared_edge_id]
+    start = project.topology.vertices[edge.start_vertex_id]
+    end = project.topology.vertices[edge.end_vertex_id]
+    from atlasweave.domain.geometry import Point
+
+    updated = insert_vertex_on_edge(
+        project, shared_edge_id, Point((start.x + end.x) / 2, (start.y + end.y) / 2)
+    )
+    assert shared_edge_id not in updated.topology.edges
+    assert sum(
+        updated.topology.face_polygon(child.face_ids[0]).area for child in children
+    ) == pytest.approx(10000)
