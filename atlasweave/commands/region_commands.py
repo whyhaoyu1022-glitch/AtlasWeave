@@ -348,32 +348,39 @@ def merge_sibling_regions(
     region_ids: Sequence[str],
     merged_name: str | None = None,
 ) -> tuple[Project, Region]:
-    """Merge two adjacent simple siblings while retaining the first UUID."""
+    """Merge two or more adjacent simple siblings while retaining the first UUID."""
     ids = tuple(dict.fromkeys(region_ids))
-    if len(ids) != 2 or any(region_id not in project.regions for region_id in ids):
-        raise RegionCommandError("请选择两个相邻的同级区域。")
-    first, second = (project.regions[region_id] for region_id in ids)
-    if first.level_id != second.level_id or first.parent_id != second.parent_id:
+    if len(ids) < 2 or any(region_id not in project.regions for region_id in ids):
+        raise RegionCommandError("请选择至少两个相邻的同级区域。")
+    regions = tuple(project.regions[region_id] for region_id in ids)
+    first = regions[0]
+    if any(
+        region.level_id != first.level_id or region.parent_id != first.parent_id
+        for region in regions[1:]
+    ):
         raise RegionCommandError("只能合并同一父级下的同级区域。")
-    if any(not region.visible for region in (first, second)):
+    if any(not region.visible for region in regions):
         raise RegionCommandError("不可见区域不能参与合并。")
-    if any(region.locked for region in (first, second)):
+    if any(region.locked for region in regions):
         raise RegionCommandError("锁定区域不能合并。")
     if any(
         child.parent_id in ids for child in project.regions.values() if child.parent_id is not None
     ):
         raise RegionCommandError("包含子区域的区域不能直接合并。")
-    if len(first.face_ids) != 1 or len(second.face_ids) != 1:
-        raise RegionCommandError("本批合并只支持两个简单单面区域。")
+    if any(len(region.face_ids) != 1 for region in regions):
+        raise RegionCommandError("本批合并只支持简单单面区域。")
     try:
-        first_polygon = project.topology.face_polygon(first.face_ids[0])
-        second_polygon = project.topology.face_polygon(second.face_ids[0])
+        polygons = tuple(project.topology.face_polygon(region.face_ids[0]) for region in regions)
     except (KeyError, ValueError, GEOSException) as exc:
         raise RegionCommandError(f"区域几何无法验证：{exc}") from exc
-    shared_length = first_polygon.boundary.intersection(second_polygon.boundary).length
+    shared_length = sum(
+        polygons[index].boundary.intersection(polygons[other].boundary).length
+        for index in range(len(polygons))
+        for other in range(index + 1, len(polygons))
+    )
     if shared_length <= project.tolerances.minimum_edge_length:
-        raise RegionCommandError("两个区域没有可合并的共享边。")
-    merged = unary_union((first_polygon, second_polygon))
+        raise RegionCommandError("所选区域没有可合并的共享边。")
+    merged = unary_union(polygons)
     if not isinstance(merged, Polygon) or not merged.is_valid or len(merged.interiors):
         raise RegionCommandError("合并结果不是无洞的有效单面区域。")
 
@@ -441,11 +448,12 @@ def merge_sibling_regions(
         name=(merged_name or first.name).strip() or first.name,
         face_ids=(face.id,),
     )
-    updated_second = replace(second, visible=False)
+    updated_regions = {**project.regions, first.id: updated_first}
+    updated_regions.update({region.id: replace(region, visible=False) for region in regions[1:]})
     return (
         replace(
             project,
-            regions={**project.regions, first.id: updated_first, second.id: updated_second},
+            regions=updated_regions,
             topology=topology,
             modified_at=datetime.now(UTC),
         ),

@@ -194,3 +194,32 @@ def test_merge_adjacent_siblings_preserves_first_uuid_and_adjacency():
     assert not merged_project.regions[children[1].id].visible
     assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(10000)
     assert region_adjacency(merged_project, merged.id) == ()
+
+
+def test_merge_multiple_adjacent_siblings_into_one_region():
+    project = Project(
+        name="批量合并测试",
+        world_width_km=120,
+        world_height_km=120,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project,
+        Polygon(((0, 0), (100, 0), (100, 100), (60, 100), (60, 40), (40, 40), (40, 100), (0, 100))),
+        "国家",
+        "国家",
+    )
+    project, children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 30), QPointF(110, 70), QPointF(-10, 90)],
+        tuple(f"省{i}" for i in range(1, 6)),
+        "省",
+    )
+    merged_project, merged = merge_sibling_regions(project, [child.id for child in children])
+    assert merged.id == children[0].id
+    assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(8800)
+    assert all(not merged_project.regions[child.id].visible for child in children[1:])
