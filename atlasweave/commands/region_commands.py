@@ -10,6 +10,7 @@ from shapely.errors import GEOSException
 from shapely.geometry import LineString, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split as split_geometry
+from shapely.ops import unary_union
 from shapely.validation import explain_validity
 
 from atlasweave.domain.geometry import Point
@@ -339,4 +340,140 @@ def split_region_into_children(
             modified_at=datetime.now(UTC),
         ),
         children,
+    )
+
+
+def merge_sibling_regions(
+    project: Project,
+    region_ids: Sequence[str],
+    merged_name: str | None = None,
+) -> tuple[Project, Region]:
+    """Merge two adjacent simple siblings while retaining the first UUID."""
+    ids = tuple(dict.fromkeys(region_ids))
+    if len(ids) != 2 or any(region_id not in project.regions for region_id in ids):
+        raise RegionCommandError("请选择两个相邻的同级区域。")
+    first, second = (project.regions[region_id] for region_id in ids)
+    if first.level_id != second.level_id or first.parent_id != second.parent_id:
+        raise RegionCommandError("只能合并同一父级下的同级区域。")
+    if any(not region.visible for region in (first, second)):
+        raise RegionCommandError("不可见区域不能参与合并。")
+    if any(region.locked for region in (first, second)):
+        raise RegionCommandError("锁定区域不能合并。")
+    if any(
+        child.parent_id in ids for child in project.regions.values() if child.parent_id is not None
+    ):
+        raise RegionCommandError("包含子区域的区域不能直接合并。")
+    if len(first.face_ids) != 1 or len(second.face_ids) != 1:
+        raise RegionCommandError("本批合并只支持两个简单单面区域。")
+    try:
+        first_polygon = project.topology.face_polygon(first.face_ids[0])
+        second_polygon = project.topology.face_polygon(second.face_ids[0])
+    except (KeyError, ValueError, GEOSException) as exc:
+        raise RegionCommandError(f"区域几何无法验证：{exc}") from exc
+    shared_length = first_polygon.boundary.intersection(second_polygon.boundary).length
+    if shared_length <= project.tolerances.minimum_edge_length:
+        raise RegionCommandError("两个区域没有可合并的共享边。")
+    merged = unary_union((first_polygon, second_polygon))
+    if not isinstance(merged, Polygon) or not merged.is_valid or len(merged.interiors):
+        raise RegionCommandError("合并结果不是无洞的有效单面区域。")
+
+    vertices = dict(project.topology.vertices)
+    edges = dict(project.topology.edges)
+    half_edges = dict(project.topology.half_edges)
+    rings = dict(project.topology.rings)
+    faces = dict(project.topology.faces)
+    vertex_by_coordinate = {
+        (round(vertex.x, 12), round(vertex.y, 12)): vertex.id for vertex in vertices.values()
+    }
+    edge_by_key: dict[tuple[tuple[float, float], tuple[float, float]], str] = {}
+    for edge in edges.values():
+        start = vertices[edge.start_vertex_id].point.as_tuple()
+        end = vertices[edge.end_vertex_id].point.as_tuple()
+        edge_by_key[tuple(sorted((start, end)))] = edge.id
+
+    def vertex_id(coordinate: tuple[float, float]) -> str:
+        coordinate = (round(coordinate[0], 12), round(coordinate[1], 12))
+        if coordinate not in vertex_by_coordinate:
+            vertex = Vertex(x=coordinate[0], y=coordinate[1])
+            vertices[vertex.id] = vertex
+            vertex_by_coordinate[coordinate] = vertex.id
+        return vertex_by_coordinate[coordinate]
+
+    points = list(orient(merged, sign=1.0).exterior.coords)[:-1]
+    half_ids: list[str] = []
+    for index, start in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        start_key = (round(start[0], 12), round(start[1], 12))
+        end_key = (round(end[0], 12), round(end[1], 12))
+        edge_key = tuple(sorted((start_key, end_key)))
+        start_vertex = vertex_id(start_key)
+        end_vertex = vertex_id(end_key)
+        edge_id = edge_by_key.get(edge_key)
+        if edge_id is None:
+            edge = Edge(start_vertex_id=start_vertex, end_vertex_id=end_vertex)
+            edges[edge.id] = edge
+            edge_by_key[edge_key] = edge.id
+        else:
+            edge = edges[edge_id]
+        reversed_edge = edge.start_vertex_id == end_vertex and edge.end_vertex_id == start_vertex
+        if not reversed_edge and (
+            edge.start_vertex_id != start_vertex or edge.end_vertex_id != end_vertex
+        ):
+            raise RegionCommandError("合并结果无法建立共享边拓扑。")
+        half = HalfEdge(edge_id=edge.id, reversed=reversed_edge)
+        half_edges[half.id] = half
+        half_ids.append(half.id)
+    ring = Ring(half_edge_ids=tuple(half_ids))
+    face = Face(outer_ring_id=ring.id)
+    rings[ring.id] = ring
+    faces[face.id] = face
+    topology = replace(
+        project.topology,
+        vertices=vertices,
+        edges=edges,
+        half_edges=half_edges,
+        rings=rings,
+        faces=faces,
+        geometry_version=project.topology.geometry_version + 1,
+    )
+    updated_first = replace(
+        first,
+        name=(merged_name or first.name).strip() or first.name,
+        face_ids=(face.id,),
+    )
+    updated_second = replace(second, visible=False)
+    return (
+        replace(
+            project,
+            regions={**project.regions, first.id: updated_first, second.id: updated_second},
+            topology=topology,
+            modified_at=datetime.now(UTC),
+        ),
+        updated_first,
+    )
+
+
+def region_adjacency(project: Project, region_id: str) -> tuple[str, ...]:
+    """Return visible same-level sibling IDs connected by shared topology edges."""
+    region = project.regions.get(region_id)
+    if region is None or not region.face_ids:
+        return ()
+    siblings = [
+        candidate
+        for candidate in project.regions.values()
+        if candidate.visible
+        and candidate.id != region.id
+        and candidate.level_id == region.level_id
+        and candidate.parent_id == region.parent_id
+        and candidate.face_ids
+    ]
+    face_ids = tuple(region.face_ids) + tuple(
+        face_id for item in siblings for face_id in item.face_ids
+    )
+    adjacent_faces = project.topology.adjacency(face_ids)
+    target_neighbors = set().union(
+        *(adjacent_faces.get(face_id, ()) for face_id in region.face_ids)
+    )
+    return tuple(
+        sorted(item.id for item in siblings if target_neighbors.intersection(item.face_ids))
     )

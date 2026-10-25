@@ -5,8 +5,10 @@ from shapely.geometry import Polygon
 from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
+    merge_sibling_regions,
     polygon_from_freehand,
     preview_region_split,
+    region_adjacency,
     split_region_into_children,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
@@ -159,3 +161,36 @@ def test_split_child_uses_next_level_and_rejects_existing_children():
             ("重复市一", "重复市二"),
             "市",
         )
+
+
+def test_merge_adjacent_siblings_preserves_first_uuid_and_adjacency():
+    project = Project(
+        name="合并测试",
+        world_width_km=100,
+        world_height_km=100,
+        hierarchy_levels=(
+            HierarchyLevel(order=0, name="国家级", default_type_name="国家"),
+            HierarchyLevel(order=1, name="省级", default_type_name="省"),
+        ),
+    )
+    project, parent = create_top_level_region(
+        project, Polygon(((0, 0), (100, 0), (100, 100), (0, 100))), "国家", "国家"
+    )
+    project, children = split_region_into_children(
+        project,
+        parent.id,
+        [QPointF(-10, 50), QPointF(110, 50)],
+        ("北省", "南省"),
+        "省",
+    )
+    assert region_adjacency(project, children[0].id) == (children[1].id,)
+
+    merged_project, merged = merge_sibling_regions(
+        project, [children[0].id, children[1].id], "合并省"
+    )
+
+    assert merged.id == children[0].id
+    assert merged.name == "合并省"
+    assert not merged_project.regions[children[1].id].visible
+    assert merged_project.topology.face_polygon(merged.face_ids[0]).area == pytest.approx(10000)
+    assert region_adjacency(merged_project, merged.id) == ()

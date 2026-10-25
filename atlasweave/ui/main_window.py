@@ -49,8 +49,10 @@ from atlasweave.commands.project_commands import ProjectSnapshotCommand
 from atlasweave.commands.region_commands import (
     RegionCommandError,
     create_top_level_region,
+    merge_sibling_regions,
     polygon_from_freehand,
     preview_region_split,
+    region_adjacency,
     split_region_into_children,
 )
 from atlasweave.domain.hierarchy import HierarchyLevel
@@ -662,7 +664,8 @@ class MainWindow(QMainWindow):
             if len(selected) == 1 and selected[0] in self.project.regions:
                 region = self.project.regions[selected[0]]
                 self.property_label.setText(
-                    f"区域：{region.name}\n类型：{region.type_name}\n状态：{region.status}"
+                    f"区域：{region.name}\n类型：{region.type_name}\n状态：{region.status}\n"
+                    f"相邻区域：{len(region_adjacency(self.project, region.id))}"
                 )
             elif count > 1:
                 self.property_label.setText(f"已选择 {count} 个区域\n面积：{area:g} km²")
@@ -706,6 +709,10 @@ class MainWindow(QMainWindow):
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
+        self.merge_action = QAction("合并相邻区域", self)
+        self.merge_action.setShortcut(QKeySequence("Ctrl+M"))
+        self.merge_action.triggered.connect(self._merge_selected)
+        edit_menu.addAction(self.merge_action)
         file_menu.addSeparator()
         self.exit_action = QAction("退出(&X)", self)
         self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
@@ -851,6 +858,7 @@ class MainWindow(QMainWindow):
         self.draw_action.setEnabled(writable)
         self.freehand_action.setEnabled(writable)
         self.split_action.setEnabled(writable and bool(self.canvas.selected_region_ids))
+        self.merge_action.setEnabled(writable and len(self.canvas.selected_region_ids) == 2)
 
     def _set_draw_mode(self, enabled: bool) -> None:
         if enabled and (self.project is None or self.read_only):
@@ -952,6 +960,31 @@ class MainWindow(QMainWindow):
         self.canvas.cancel_split()
         self.split_action.setChecked(False)
         self.statusBar().showMessage("已切分区域（可撤销）", 5000)
+
+    def _merge_selected(self) -> None:
+        if self.project is None or self.read_only:
+            return
+        selected = tuple(self.canvas.selected_region_ids)
+        if len(selected) != 2:
+            self.statusBar().showMessage("请先选择两个相邻的同级区域。", 4000)
+            return
+        try:
+            merged_project, merged = merge_sibling_regions(self.project, selected)
+        except RegionCommandError as exc:
+            self.issue_panel.setPlainText(f"合并区域失败：\n{exc}")
+            self.statusBar().showMessage(str(exc), 5000)
+            return
+        self.undo_stack.push(
+            ProjectSnapshotCommand(
+                self,
+                self.project,
+                merged_project,
+                selected,
+                (merged.id,),
+                f"合并区域：{merged.name}",
+            )
+        )
+        self.statusBar().showMessage("已合并相邻区域（可撤销）", 5000)
 
     def _polygon_completed(self, points) -> None:
         if self.project is None or self.read_only:
